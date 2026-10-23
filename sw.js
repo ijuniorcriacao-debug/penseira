@@ -1,5 +1,5 @@
-const CACHE = 'penseira-v3';
-const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest',
+const CACHE = 'penseira-v4';
+const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './fonts/inter-latin-wght-normal.woff2', './fonts/cormorant-garamond-latin-500-italic.woff2',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
 
 self.addEventListener('install', (e) => {
@@ -18,12 +18,11 @@ self.addEventListener('activate', (e) => {
 // Cache primeiro, atualizando em segundo plano (abre rápido e funciona offline).
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
-  if (e.request.method !== 'GET' || (url.origin !== location.origin && !isFont)) return;
+  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then((hit) => {
       const net = fetch(e.request).then((res) => {
-        if (res.ok || res.type === 'opaque') { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
         return res;
       }).catch(() => hit || caches.match('./index.html'));
       return hit || net;

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Penseira</title>
 <meta name="description" content="Sua penseira pessoal: frases, metas, frentes de trabalho e pensamentos num só lugar.">
-<meta name="theme-color" content="#070b14">
+<meta name="theme-color" content="#0c0d0f">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -13,19 +13,18 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Penseira">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Cormorant+Garamond:ital,wght@1,500;1,600&display=swap">
+<link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="app">
   <aside class="side" id="side"></aside>
-  <main id="view" tabindex="-1"></main>
+  <div class="col">
+    <header class="top" id="top"></header>
+    <main id="view" tabindex="-1"></main>
+  </div>
   <nav class="tabs" id="tabs" aria-label="Navegação"></nav>
 </div>
-<button class="fab mic" id="mic" data-act="speak" aria-label="Falar um pensamento"></button>
-<button class="fab" id="fab" data-act="capture" aria-label="Novo registro (tecla N)"></button>
 <div id="sheet"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="app.js"></script>
