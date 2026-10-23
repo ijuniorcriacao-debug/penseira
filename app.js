@@ -1,7 +1,7 @@
 'use strict';
 /* Penseira — dados ficam no aparelho (localStorage). Sem servidor, sem conta. */
 
-const APP_VERSION = '1.1.0'; // mantenha igual ao VERSION do sw.js a cada publicação
+const APP_VERSION = '1.1.1'; // mantenha igual ao VERSION do sw.js a cada publicação
 const APP_NAME = 'Penseira'; // nome do produto: troque aqui (e em index.html / manifest.webmanifest) para renomear
 const KEY = 'penseira:v1';
 const $ = (s, r = document) => r.querySelector(s);
@@ -497,12 +497,16 @@ function dictate(input, btn) {
   };
   r.onstart = () => { btn.classList.add('rec'); btn.setAttribute('aria-pressed', 'true'); };
   r.onresult = (e) => {
-    let interim = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) finals += (finals ? ' ' : '') + t.trim(); else interim += t;
+    // refaz o texto a partir de TODOS os resultados da sessão (o Chrome do Android reenvia
+    // trechos já ditos, e alguns resultados vêm cumulativos: só mantém a parte nova)
+    let out = '';
+    for (let i = 0; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript.trim();
+      if (!t) continue;
+      if (out && t.toLowerCase().startsWith(out.toLowerCase())) out = t;
+      else if (!out.toLowerCase().endsWith(t.toLowerCase())) out += (out ? ' ' : '') + t;
     }
-    paint(interim ? ' ' + interim : '');
+    finals = ''; paint(out ? ' ' + out : '');
   };
   r.onerror = (e) => {
     if (e.error === 'no-speech' || e.error === 'aborted') return;
