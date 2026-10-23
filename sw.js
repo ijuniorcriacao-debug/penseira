@@ -3,11 +3,11 @@
    - Offline: usa a última cópia guardada.
    - Versão nova: espera a pessoa tocar em "Atualizar" no aviso do app (mensagem SKIP_WAITING).
    - Push: mostra notificações enviadas por um servidor, mesmo com o app fechado. */
-const VERSION = '1.4.0';               // mantenha igual ao APP_VERSION do app.js
+const VERSION = '1.5.0';               // mantenha igual ao APP_VERSION do app.js
 const CACHE = 'penseira-' + VERSION;
 const ASSETS = ['./', './index.html', './penseira.css', './app.js', './frases.js', './art.js', './magic.js', './manifest.webmanifest',
   './fonts/inter-latin-wght-normal.woff2', './fonts/cormorant-garamond-latin-wght-normal.woff2', './fonts/cormorant-garamond-latin-wght-italic.woff2',
-  './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
+  './icons/icon.svg', './img/bacia.webp', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => Promise.all(ASSETS.map((u) => c.add(new Request(u, { cache: 'reload' })).catch(() => {})))));
