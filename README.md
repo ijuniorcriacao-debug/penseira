@@ -5,7 +5,7 @@ frentes de trabalho, agenda e a **penseira** — pensamentos flutuando que se or
 
 - **Hoje**: dashboard com frase, metas, compromissos, prioridades, frentes e pensamentos.
 - **Penseira**: jogue ideias soltas (texto ou voz). Ele classifica em Fazer / Ideia / Dúvida / Lembrar / Frase / Reflexão; `#tags` ligam à frente certa; "Organizar" vira tarefas.
-- **Frentes**: tarefas por frente de trabalho, com prazo e prioridade ⭐.
+- **Frentes**: tarefas por frente de trabalho, com prazo e marcação de prioridade.
 - **Agenda**: compromissos + prazos das tarefas.
 - **Frases**: suas frases importantes; uma aparece por vez e pode virar notificação ao longo do dia.
 

@@ -31,16 +31,25 @@ const IC = {
   more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
   edit: '<path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
 };
+const SIG = { // sinais em traço fino, no lugar de emoji
+  fazer: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  ideia: '<path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z"/>',
+  pergunta: '<path d="M9 9.5a3 3 0 1 1 4.6 2.5c-1 .7-1.6 1.2-1.6 2.5M12 18.2v.3"/>',
+  lembrar: '<path d="M12 3l7 9-7 9-7-9z"/>',
+  frase: '<path d="M5 11V8.5A3.5 3.5 0 0 1 8.5 5M5 11h4.5v6H5zM14 11V8.5A3.5 3.5 0 0 1 17.5 5M14 11h4.5v6H14z"/>',
+  reflexao: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>',
+};
+const sig = (k) => `<svg class="sig" viewBox="0 0 24 24" aria-hidden="true">${SIG[k] || SIG.reflexao}</svg>`;
 const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>`;
 
 /* ---------- dados ---------- */
 const CATS = {
-  fazer: { label: 'Fazer', emoji: '✅', hue: 152 },
-  ideia: { label: 'Ideia', emoji: '💡', hue: 45 },
-  pergunta: { label: 'Dúvida', emoji: '❓', hue: 200 },
-  lembrar: { label: 'Lembrar', emoji: '📌', hue: 340 },
-  frase: { label: 'Frase', emoji: '💬', hue: 275 },
-  reflexao: { label: 'Reflexão', emoji: '🧠', hue: 232 },
+  fazer: { label: 'Fazer', hue: 152 },
+  ideia: { label: 'Ideia', hue: 45 },
+  pergunta: { label: 'Dúvida', hue: 200 },
+  lembrar: { label: 'Lembrar', hue: 340 },
+  frase: { label: 'Frase', hue: 275 },
+  reflexao: { label: 'Reflexão', hue: 232 },
 };
 const HUES = [262, 200, 152, 45, 18, 340, 175, 300];
 
@@ -54,8 +63,8 @@ function defaults() {
       { id: uid(), text: 'O que está na lista não precisa ficar na cabeça. A cabeça é para pensar.', author: '', fav: false },
     ],
     areas: [
-      { id: 'a1', name: 'Trabalho', emoji: '💼', hue: 262 },
-      { id: 'a2', name: 'Projetos', emoji: '🚀', hue: 200 },
+      { id: 'a1', name: 'Trabalho', hue: 262 },
+      { id: 'a2', name: 'Projetos', hue: 200 },
     ],
     tasks: [], events: [],
     goals: [
@@ -175,7 +184,7 @@ function taskRow(t, showArea) {
 function agendaRow(it) {
   return `<div class="item ${it.done ? 'done' : ''}">
     <button class="ck ${it.done ? 'on' : ''}" data-act="${it.kind}Toggle" data-id="${it.id}" aria-label="Concluir">${ic('check')}</button>
-    <button class="t" data-act="${it.kind}Edit" data-id="${it.id}">${it.kind === 'event' ? '📅 ' : '☑️ '}${esc(it.title)}${it.area ? ` <span class="muted">· ${esc(it.area.name)}</span>` : ''}</button>
+    <button class="t" data-act="${it.kind}Edit" data-id="${it.id}"><span class="kind ${it.kind}"></span>${esc(it.title)}${it.area ? ` <span class="muted">· ${esc(it.area.name)}</span>` : ''}</button>
     <span class="due ${dueCls(it.date)}">${relDate(it.date)}${it.time ? ' · ' + it.time : ''}</span>
   </div>`;
 }
@@ -213,10 +222,10 @@ function vHoje() {
   const stars = state.tasks.filter((t) => t.star && !t.done).slice(0, 6);
   const float = [...liveThoughts().filter((t) => t.pinned), ...liveThoughts().filter((t) => !t.pinned)].slice(0, 7);
   return `
-  <div class="page-h"><div><h1>${greeting()} 👋</h1><p>${parseKey(k).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p></div></div>
+  <div class="page-h"><div><h1>${greeting()}</h1><p>${parseKey(k).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p></div></div>
   <div class="grid two">
     <section class="card phrase span2">
-      <div class="lbl">✦ Lembre-se agora</div>
+      <div class="lbl">Lembre-se agora</div>
       ${p ? `<blockquote>${esc(p.text)}</blockquote>${p.author ? `<cite>— ${esc(p.author)}</cite>` : ''}
       <div class="acts"><button class="ib" data-act="phraseNext" aria-label="Outra frase">${ic('shuffle')}</button>
       <button class="ib ${p.fav ? 'on' : ''}" data-act="phraseFav" data-id="${p.id}" aria-label="Favoritar">${ic('heart')}</button></div>`
@@ -225,9 +234,9 @@ function vHoje() {
     <section class="card">
       <div class="card-h"><h2>Metas de hoje</h2><span class="muted">${doneN}/${goals.length}</span></div>
       <div class="row" style="margin-bottom:8px"><div class="ring"><svg viewBox="0 0 74 74"><circle cx="37" cy="37" r="${R}" fill="none" stroke="#1e2a48" stroke-width="8"/><circle cx="37" cy="37" r="${R}" fill="none" stroke="var(--cyan)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct)}"/></svg><b>${Math.round(pct * 100)}%</b></div>
-      <div class="muted grow">${goals.length ? (pct === 1 ? 'Tudo feito hoje. 🎉' : 'Marque conforme for cumprindo.') : 'Crie sua primeira meta diária.'}</div></div>
+      <div class="muted grow">${goals.length ? (pct === 1 ? 'Tudo cumprido por hoje.' : 'Marque conforme for cumprindo.') : 'Crie sua primeira meta diária.'}</div></div>
       ${goals.map((g) => `<div class="item ${goalDone(g) ? 'done' : ''}"><button class="ck ${goalDone(g) ? 'on' : ''}" data-act="goalToggle" data-id="${g.id}" aria-label="Concluir">${ic('check')}</button>
-        <button class="t" data-act="goalEdit" data-id="${g.id}">${esc(g.text)}</button>${streak(g) > 1 ? `<span class="streak">🔥 ${streak(g)}</span>` : ''}</div>`).join('')}
+        <button class="t" data-act="goalEdit" data-id="${g.id}">${esc(g.text)}</button>${streak(g) > 1 ? `<span class="streak">${streak(g)} dias</span>` : ''}</div>`).join('')}
       <form class="addrow" data-form="goalAdd"><input class="in" name="text" placeholder="Nova meta diária…" autocomplete="off"><button class="btn sm" aria-label="Adicionar">${ic('plus')}</button></form>
     </section>
     <section class="card">
@@ -235,14 +244,14 @@ function vHoje() {
       ${ag.length ? ag.map(agendaRow).join('') : '<div class="empty">Nada marcado para hoje ou amanhã.</div>'}
     </section>
     <section class="card">
-      <div class="card-h"><h2>Prioridades ⭐</h2></div>
+      <div class="card-h"><h2>Prioridades</h2></div>
       ${stars.length ? stars.map((t) => taskRow(t, true)).join('') : '<div class="empty">Marque a estrela numa tarefa para ela aparecer aqui.</div>'}
     </section>
     <section class="card">
       <div class="card-h"><h2>Frentes</h2><button class="btn sm" data-act="go" data-view="frentes">Ver todas</button></div>
       <div class="stack">${state.areas.map((a) => {
         const open = state.tasks.filter((t) => t.areaId === a.id && !t.done).length;
-        return `<button class="mini" style="--h:${a.hue}" data-act="go" data-view="frentes">${a.emoji} <b>${esc(a.name)}</b><span>${open} aberta${open === 1 ? '' : 's'}</span></button>`;
+        return `<button class="mini" style="--h:${a.hue}" data-act="go" data-view="frentes"><span class="dot"></span> <b>${esc(a.name)}</b><span>${open} aberta${open === 1 ? '' : 's'}</span></button>`;
       }).join('') || '<div class="empty">Crie suas frentes de trabalho.</div>'}</div>
     </section>
     <section class="card pencard span2">
@@ -265,25 +274,25 @@ function vPenseira() {
   const mode = state.settings.mode;
   const count = (c) => live.filter((t) => t.cat === c).length;
   let body;
-  if (!list.length) body = `<div class="empty">${state.thoughts.length ? 'Nada por aqui com esse filtro.' : 'Solte um pensamento acima. ✨'}</div>`;
+  if (!list.length) body = `<div class="empty">${state.thoughts.length ? 'Nada por aqui com esse filtro.' : 'Solte um pensamento acima.'}</div>`;
   else if (mode === 'nuvem') body = `<div class="cloud">${list.map((t) => bubble(t)).join('')}</div>`;
   else body = Object.keys(CATS).map((c) => {
     const items = list.filter((t) => t.cat === c);
-    return items.length ? `<div class="grp-h">${CATS[c].emoji} ${CATS[c].label} <span>${items.length}</span></div><div class="cols">${items.map((t) => bubble(t)).join('')}</div>` : '';
+    return items.length ? `<div class="grp-h">${sig(c)} ${CATS[c].label} <span>${items.length}</span></div><div class="cols">${items.map((t) => bubble(t)).join('')}</div>` : '';
   }).join('');
   const nFazer = live.filter((t) => t.cat === 'fazer').length;
   return `
   <div class="page-h"><div><h1>Penseira</h1><p>${live.length} pensamento${live.length === 1 ? '' : 's'} flutuando</p></div>
     <div class="row">
-      ${nFazer ? `<button class="btn sm" data-act="organize">✅ Organizar (${nFazer})</button>` : ''}
+      ${nFazer ? `<button class="btn sm" data-act="organize">Organizar (${nFazer})</button>` : ''}
       <button class="btn sm" data-act="mode">${mode === 'nuvem' ? 'Ver em grupos' : 'Ver nuvem'}</button></div></div>
   ${basinHtml(true)}
   <form class="capture" data-form="quick"><input name="text" placeholder="O que está passando pela sua cabeça?" autocomplete="off" aria-label="Novo pensamento">
-    ${SR ? `<button type="button" class="ib" data-act="dictate" aria-label="Ditar">${ic('mic')}</button>` : ''}<button class="btn pri sm" aria-label="Adicionar">${ic('plus')}</button></form>
+    <button type="button" class="ib" data-act="dictate" aria-label="Ditar por voz">${ic('mic')}</button><button class="btn pri sm" aria-label="Adicionar">${ic('plus')}</button></form>
   <div class="row wrap" style="margin-bottom:14px"><input class="in grow" style="max-width:300px" data-input="search" placeholder="Buscar…" value="${esc(ui.q)}"></div>
   <div class="chips" style="margin-bottom:18px">
     <button class="chip ${ui.tf === 'todas' ? 'on' : ''}" data-act="filter" data-f="todas">Todas ${live.length}</button>
-    ${Object.entries(CATS).filter(([c]) => count(c)).map(([c, v]) => `<button class="chip cat ${ui.tf === c ? 'on' : ''}" style="--h:${v.hue}" data-act="filter" data-f="${c}">${v.emoji} ${v.label} ${count(c)}</button>`).join('')}
+    ${Object.entries(CATS).filter(([c]) => count(c)).map(([c, v]) => `<button class="chip cat ${ui.tf === c ? 'on' : ''}" style="--h:${v.hue}" data-act="filter" data-f="${c}">${sig(c)}${v.label} ${count(c)}</button>`).join('')}
     ${allTags.map((g) => `<button class="chip ${ui.tf === '#' + g ? 'on' : ''}" data-act="filter" data-f="#${g}">#${esc(g)}</button>`).join('')}
     ${state.thoughts.some((t) => t.done) ? `<button class="chip ${ui.tf === 'resolvidos' ? 'on' : ''}" data-act="filter" data-f="resolvidos">Resolvidos</button>` : ''}
   </div>${body}`;
@@ -298,9 +307,9 @@ function vFrentes() {
     const done = all.filter((t) => t.done);
     const pct = all.length ? Math.round((done.length / all.length) * 100) : 0;
     return `<section class="card area" style="--h:${a.hue}">
-      <div class="ttl"><span style="font-size:22px">${a.emoji}</span><h3>${esc(a.name)}</h3><span class="muted">${pct}%</span><button class="ib" data-act="areaEdit" data-id="${a.id}" aria-label="Editar frente">${ic('more')}</button></div>
+      <div class="ttl"><span class="dot big"></span><h3>${esc(a.name)}</h3><span class="muted">${pct}%</span><button class="ib" data-act="areaEdit" data-id="${a.id}" aria-label="Editar frente">${ic('more')}</button></div>
       <div class="bar"><i style="width:${pct}%"></i></div>
-      ${open.map((t) => taskRow(t)).join('') || '<div class="empty" style="padding:10px">Nenhuma tarefa aberta 🎉</div>'}
+      ${open.map((t) => taskRow(t)).join('') || '<div class="empty" style="padding:10px">Nenhuma tarefa aberta</div>'}
       <form class="addrow" data-form="taskAdd" data-area="${a.id}"><input class="in" name="text" placeholder="Nova tarefa…" autocomplete="off"><button class="btn sm" aria-label="Adicionar">${ic('plus')}</button></form>
       ${done.length ? `<details><summary>${done.length} concluída${done.length === 1 ? '' : 's'}</summary>${done.slice(0, 15).map((t) => taskRow(t)).join('')}</details>` : ''}
     </section>`;
@@ -350,7 +359,7 @@ function vAjustes() {
   </section>
   <section class="card span2"><div class="card-h"><h2>Seus dados</h2></div>
     <p class="muted" style="margin-top:0">Tudo fica salvo só neste aparelho. Para levar do celular ao computador (ou fazer backup), exporte e importe o arquivo.</p>
-    <div class="actions"><button class="btn" data-act="export">⬇️ Exportar backup</button><button class="btn" data-act="import">⬆️ Importar (substitui tudo)</button><button class="btn danger" data-act="wipe">Apagar tudo</button></div>
+    <div class="actions"><button class="btn" data-act="export">Exportar backup</button><button class="btn" data-act="import">Importar (substitui tudo)</button><button class="btn danger" data-act="wipe">Apagar tudo</button></div>
     <input type="file" id="file" accept="application/json,.json" class="hide">
   </section></div>`;
 }
@@ -390,12 +399,12 @@ function openSheet(title, html, bind) {
   setTimeout(() => $('[autofocus]', f)?.focus(), 30);
   return f;
 }
-function closeSheet() { sheet.classList.remove('open'); sheet.innerHTML = ''; document.body.classList.remove('noscroll'); }
+function closeSheet() { stopDictation(); sheet.classList.remove('open'); sheet.innerHTML = ''; document.body.classList.remove('noscroll'); }
 let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
 const fd = (form) => Object.fromEntries(new FormData(form));
-const areaOpts = (sel) => state.areas.map((a) => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${a.emoji} ${esc(a.name)}</option>`).join('');
-const catChips = (sel, withAuto) => `<div class="chips" data-cats>${withAuto ? `<button type="button" class="chip ${!sel ? 'on' : ''}" data-cat="">✨ Auto</button>` : ''}${Object.entries(CATS).map(([c, v]) => `<button type="button" class="chip cat ${sel === c ? 'on' : ''}" style="--h:${v.hue}" data-cat="${c}">${v.emoji} ${v.label}</button>`).join('')}</div>`;
+const areaOpts = (sel) => state.areas.map((a) => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+const catChips = (sel, withAuto) => `<div class="chips" data-cats>${withAuto ? `<button type="button" class="chip ${!sel ? 'on' : ''}" data-cat="">Auto</button>` : ''}${Object.entries(CATS).map(([c, v]) => `<button type="button" class="chip cat ${sel === c ? 'on' : ''}" style="--h:${v.hue}" data-cat="${c}">${sig(c)}${v.label}</button>`).join('')}</div>`;
 function bindCats(root, onPick) {
   root.addEventListener('click', (e) => {
     const b = e.target.closest('[data-cat]');
@@ -407,26 +416,52 @@ function bindCats(root, onPick) {
 
 /* ---------- ditado por voz ---------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null; // reconhecimento em andamento
+function stopDictation() { if (rec) { rec.stop(); rec = null; } }
 function dictate(input, btn) {
-  if (!SR) return toast('Seu navegador não suporta ditado.');
+  if (!SR) return toast('Este navegador não tem ditado por voz. Use o Chrome (Android/PC) ou o Safari (iPhone).');
+  if (rec) { stopDictation(); return; }
   const r = new SR();
-  r.lang = 'pt-BR'; r.interimResults = true; r.continuous = false;
-  const base = input.value;
-  btn.classList.add('rec');
-  r.onresult = (e) => { let t = ''; for (const res of e.results) t += res[0].transcript; input.value = (base ? base + ' ' : '') + t; input.dispatchEvent(new Event('input', { bubbles: true })); };
-  r.onend = () => btn.classList.remove('rec');
-  r.onerror = () => { btn.classList.remove('rec'); toast('Não consegui ouvir. Verifique o microfone.'); };
-  try { r.start(); } catch (e) { btn.classList.remove('rec'); }
+  r.lang = 'pt-BR'; r.interimResults = true; r.continuous = true;
+  let base = input.value, finals = '', wanted = true;
+  const paint = (interim) => {
+    const spoken = (finals + interim).trim();
+    input.value = (base && spoken ? base + ' ' : base) + spoken;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  r.onstart = () => { btn.classList.add('rec'); btn.setAttribute('aria-pressed', 'true'); };
+  r.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finals += (finals ? ' ' : '') + t.trim(); else interim += t;
+    }
+    paint(interim ? ' ' + interim : '');
+  };
+  r.onerror = (e) => {
+    if (e.error === 'no-speech' || e.error === 'aborted') return;
+    wanted = false;
+    toast(e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'Libere o microfone nas permissões do site e tente de novo.' : 'Não consegui ouvir. Verifique o microfone.');
+  };
+  r.onend = () => {
+    // alguns navegadores encerram sozinhos após uma pausa: reinicia até o usuário parar
+    if (wanted && rec === r) { base = input.value; finals = ''; try { r.start(); return; } catch (e) { /* cai para o fim */ } }
+    btn.classList.remove('rec'); btn.removeAttribute('aria-pressed'); if (rec === r) rec = null;
+  };
+  const stop = r.stop.bind(r);
+  r.stop = () => { wanted = false; stop(); };
+  rec = r;
+  try { r.start(); } catch (e) { rec = null; toast('Não consegui iniciar o microfone.'); }
 }
 
 /* ---------- captura rápida ---------- */
-function openCapture(kind = 'pensamento', preset = '') {
-  const KINDS = [['pensamento', '☁️ Pensamento'], ['tarefa', '☑️ Tarefa'], ['compromisso', '📅 Compromisso'], ['meta', '🎯 Meta'], ['frase', '💬 Frase']];
+function openCapture(kind = 'pensamento', preset = '', autoDictate = false) {
+  const KINDS = [['pensamento', 'Pensamento'], ['tarefa', 'Tarefa'], ['compromisso', 'Compromisso'], ['meta', 'Meta'], ['frase', 'Frase']];
   let cat = '';
   openSheet('Registrar', `
     <div class="chips" style="margin-bottom:14px" data-kinds>${KINDS.map(([k, l]) => `<button type="button" class="chip ${k === kind ? 'on' : ''}" data-kind="${k}">${l}</button>`).join('')}</div>
     <div class="field"><textarea class="in" name="text" autofocus placeholder="Escreva ou dite…" required>${esc(preset)}</textarea></div>
-    ${SR ? `<div style="margin:-6px 0 12px"><button type="button" class="btn sm" data-dict>${ic('mic')} Ditar</button></div>` : ''}
+    <div style="margin:-6px 0 12px"><button type="button" class="btn sm" data-dict>${ic('mic')} Falar</button></div>
     <div data-x="pensamento"><div class="pv" data-pv></div>${catChips('', true)}</div>
     <div data-x="tarefa"><div class="field"><span>Frente</span><select class="in" name="area">${areaOpts()}</select></div><div class="field"><span>Prazo (opcional)</span><input class="in" type="date" name="due"></div></div>
     <div data-x="compromisso"><div class="row"><div class="field grow"><span>Data</span><input class="in" type="date" name="date" value="${dkey()}"></div><div class="field grow"><span>Hora</span><input class="in" type="time" name="time"></div></div></div>
@@ -438,7 +473,7 @@ function openCapture(kind = 'pensamento', preset = '') {
       $$('[data-x]', f).forEach((x) => x.classList.toggle('hide', x.dataset.x !== kind));
       $$('[data-kind]', f).forEach((c) => c.classList.toggle('on', c.dataset.kind === kind));
       const pv = $('[data-pv]', f);
-      if (pv) { const c = cat || classify(ta.value || ' '); pv.textContent = ta.value.trim() ? `Vai entrar como ${CATS[c].emoji} ${CATS[c].label}` : 'Eu escolho a categoria sozinho, ou escolha abaixo.'; }
+      if (pv) { const c = cat || classify(ta.value || ' '); pv.textContent = ta.value.trim() ? `Vai entrar como ${CATS[c].label}` : 'Eu escolho a categoria sozinho, ou escolha abaixo.'; }
     };
     $('[data-kinds]', f).addEventListener('click', (e) => { const b = e.target.closest('[data-kind]'); if (b) { kind = b.dataset.kind; sync(); } });
     bindCats($('[data-x=pensamento]', f), (c) => { cat = c; sync(); });
@@ -449,7 +484,7 @@ function openCapture(kind = 'pensamento', preset = '') {
       e.preventDefault();
       const d = fd(f), text = (d.text || '').trim();
       if (!text) return;
-      if (kind === 'pensamento') { const t = addThought(text, cat); toast(`${CATS[t.cat].emoji} Guardado em ${CATS[t.cat].label}`); }
+      if (kind === 'pensamento') { const t = addThought(text, cat); toast(`Guardado em ${CATS[t.cat].label}`); }
       else if (kind === 'tarefa') {
         const a = areaFromTags(tagsOf(text))?.id || d.area;
         state.tasks.unshift({ id: uid(), text, areaId: a, due: d.due || '', done: false, star: false, created: Date.now() });
@@ -460,6 +495,7 @@ function openCapture(kind = 'pensamento', preset = '') {
       save(); closeSheet(); render();
     });
     sync();
+    if (autoDictate && SR) dictate(ta, $('[data-dict]', f));
   });
 }
 
@@ -473,10 +509,10 @@ function thoughtSheet(id) {
     ${catChips(cat)}
     <div class="field" style="margin-top:14px"><span>Frente (para virar tarefa)</span><select class="in" name="area">${areaOpts(areaFromTags(t.tags)?.id)}</select></div>
     <div class="actions">
-      <button type="button" class="btn sm" data-do="pin">${t.pinned ? 'Desafixar' : '📍 Fixar'}</button>
-      <button type="button" class="btn sm" data-do="task">☑️ Virar tarefa</button>
-      <button type="button" class="btn sm" data-do="phrase">💬 Virar frase</button>
-      <button type="button" class="btn sm" data-do="done">${t.done ? 'Reabrir' : '✔ Resolvido'}</button>
+      <button type="button" class="btn sm" data-do="pin">${t.pinned ? 'Desafixar' : 'Fixar'}</button>
+      <button type="button" class="btn sm" data-do="task">Virar tarefa</button>
+      <button type="button" class="btn sm" data-do="phrase">Virar frase</button>
+      <button type="button" class="btn sm" data-do="done">${t.done ? 'Reabrir' : 'Resolvido'}</button>
     </div>
     <div class="actions" style="margin-top:14px"><button type="button" class="btn danger" data-do="del">Apagar</button><span class="grow"></span><button class="btn pri">Salvar</button></div>`,
   (f) => {
@@ -589,14 +625,13 @@ function phraseSheet(id) {
 function areaSheet(id) {
   const a = id ? areaOf(id) : null;
   openSheet(a ? 'Editar frente' : 'Nova frente', `
-    <div class="row"><div class="field" style="width:84px"><span>Emoji</span><input class="in" name="emoji" value="${esc(a?.emoji || '📁')}" maxlength="4" style="text-align:center"></div>
-    <div class="field grow"><span>Nome</span><input class="in" name="name" value="${esc(a?.name)}" required autofocus></div></div>
+    <div class="field"><span>Nome</span><input class="in" name="name" value="${esc(a?.name)}" required autofocus></div>
     <div class="field"><span>Cor</span><div class="sw">${HUES.map((h) => `<label style="--h:${h}"><input type="radio" name="hue" value="${h}" ${(a?.hue ?? HUES[state.areas.length % HUES.length]) === h ? 'checked' : ''}><span></span></label>`).join('')}</div></div>
     <div class="actions">${a ? '<button type="button" class="btn danger" data-do="del">Apagar</button>' : ''}<span class="grow"></span><button class="btn pri">Salvar</button></div>`,
   (f) => {
     f.addEventListener('submit', (e) => {
       e.preventDefault(); const d = fd(f);
-      const v = { name: d.name.trim(), emoji: d.emoji.trim() || '📁', hue: +d.hue };
+      const v = { name: d.name.trim(), hue: +d.hue };
       if (a) Object.assign(a, v); else state.areas.push({ id: uid(), ...v });
       save(); closeSheet(); render();
     });
@@ -639,7 +674,7 @@ function tick() {
     const at = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m).getTime();
     if (ms >= at - 10 * 60000 && ms < at + 60 * 60000) {
       e.notified = true; save();
-      if (document.hidden) notify('Compromisso às ' + e.time, e.title, 'ev-' + e.id); else toast(`📅 ${e.time} · ${e.title}`);
+      if (document.hidden) notify('Compromisso às ' + e.time, e.title, 'ev-' + e.id); else toast(`${e.time} · ${e.title}`);
       changed = true;
     }
   });
@@ -650,6 +685,7 @@ function tick() {
 const ACT = {
   go: (el) => go(el.dataset.view),
   capture: () => openCapture(),
+  speak: () => { if (!SR) return toast('Este navegador não tem ditado por voz. Use o Chrome (Android/PC) ou o Safari (iPhone).'); openCapture('pensamento', '', true); },
   closeSheet,
   taskToggle: (el) => { const t = state.tasks.find((x) => x.id === el.dataset.id); t.done = !t.done; t.doneAt = t.done ? Date.now() : null; save(); render(); },
   taskStar: (el) => { const t = state.tasks.find((x) => x.id === el.dataset.id); t.star = !t.star; save(); render(); },
@@ -676,7 +712,7 @@ const ACT = {
       if (!('Notification' in window)) return toast('Este navegador não suporta notificações.');
       const p = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
       if (p !== 'granted') return toast('Permissão negada. Libere nas configurações do navegador.');
-      s.remind = true; notify('Penseira', 'Lembretes ativados. 🎉', 'teste');
+      s.remind = true; notify('Penseira', 'Lembretes ativados.', 'teste');
     } else s.remind = false;
     save(); render();
   },
@@ -709,7 +745,7 @@ document.addEventListener('submit', (e) => {
   const text = (new FormData(f).get('text') || '').trim();
   if (!text) return;
   const kind = f.dataset.form;
-  if (kind === 'quick') { const t = addThought(text); toast(`${CATS[t.cat].emoji} Guardado em ${CATS[t.cat].label}`); }
+  if (kind === 'quick') { const t = addThought(text); toast(`Guardado em ${CATS[t.cat].label}`); }
   else if (kind === 'goalAdd') { state.goals.push({ id: uid(), text, days: [] }); save(); }
   else if (kind === 'taskAdd') { state.tasks.unshift({ id: uid(), text, areaId: f.dataset.area, due: '', done: false, star: false, created: Date.now() }); save(); }
   render();
@@ -764,6 +800,7 @@ function applyTheme() {
 
 /* ---------- init ---------- */
 $('#fab').innerHTML = ic('plus');
+$('#mic').innerHTML = ic('mic');
 applyTheme();
 if (!state.current || !currentPhrase()) pickPhrase();
 const h0 = location.hash.slice(1);
