@@ -1,7 +1,7 @@
 'use strict';
 /* Penseira — dados ficam no aparelho (localStorage). Sem servidor, sem conta. */
 
-const APP_VERSION = '1.3.1'; // mantenha igual ao VERSION do sw.js a cada publicação
+const APP_VERSION = '1.3.2'; // mantenha igual ao VERSION do sw.js a cada publicação
 const APP_NAME = 'Penseira'; // nome do produto: troque aqui (e em index.html / manifest.webmanifest) para renomear
 const KEY = 'penseira:v1';
 const $ = (s, r = document) => r.querySelector(s);
@@ -232,57 +232,60 @@ const isNarrow = () => innerWidth < 720;
 const frame = (cls, html) => `<section class="frame ${cls}">${html}</section>`;
 const greeting = () => { const h = new Date().getHours(); return h < 5 ? 'Boa madrugada' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; };
 
-
-/* ----- a Penseira: a bacia de luz e os pensamentos flutuando ao redor ----- */
-function layoutBubbles(n, narrow, SH) {
-  const out = [];
-  if (narrow) {
-    for (let i = 0; i < n; i++) out.push({ x: i % 2 ? 51 : 2, y: Math.floor(i / 2) * 104 + (i % 2 ? 34 : 0) });
-    return out;
+/* ----- a Penseira: a bacia e os pensamentos flutuando ----- */
+function layoutOrbs(items, sizes, W, H) {
+  const pts = items.map((t, i) => { const h = hash(t.id); return { x: W * (0.1 + 0.8 * ((h % 997) / 997)), y: H * (0.1 + 0.62 * (((h >> 8) % 991) / 991)), rx: sizes[i] / 2 + 66, ry: sizes[i] / 2 + 38, s: sizes[i] }; });
+  for (let k = 0; k < 120; k++) {
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+      const a = pts[i], b = pts[j];
+      let dx = b.x - a.x, dy = b.y - a.y;
+      if (!dx && !dy) { dx = 1; dy = 0.5; }
+      const sx = a.rx + b.rx, sy = a.ry + b.ry, d = Math.hypot(dx / sx, dy / sy);
+      if (d < 1) { const m = (1 - d) * 0.5; a.x -= (dx / sx) * sx * m; a.y -= (dy / sy) * sy * m; b.x += (dx / sx) * sx * m; b.y += (dy / sy) * sy * m; }
+    }
+    for (const p of pts) { p.x = Math.max(p.s / 2 + 10, Math.min(W - p.s / 2 - 10, p.x)); p.y = Math.max(p.s / 2 + 6, Math.min(H - p.s / 2 - 34, p.y)); }
   }
-  const nc = n > 6 ? 1 : 0, rest = n - nc, nl = Math.ceil(rest / 2), nr = rest - nl;
-  const step = (cnt) => Math.min(132, (SH - 112) / Math.max(cnt, 1));
-  for (let i = 0; i < nl; i++) out.push({ x: 2 + (i % 2) * 4, y: 6 + i * step(nl) });
-  for (let i = 0; i < nr; i++) out.push({ x: 71 - (i % 2) * 3, y: 28 + i * step(nr) });
-  if (nc) out.push({ x: 36, y: 0 });
-  return out;
+  return pts.map((p) => ({ x: (p.x / W) * 100, y: (p.y / H) * 100 }));
 }
-function bubbleHtml(t, p) {
+function orbHtml(t, p, s) {
   const c = HUE[t.cat] ? t.cat : 'reflexao';
-  return `<button class="bub ${t.pinned ? 'pin' : ''} ${Date.now() - t.created < 5000 ? 'fresh' : ''}" data-act="thought" data-id="${t.id}" style="left:${p.x}%;top:${Math.round(p.y)}px;--h:${HUE[c]};--dur:${7 + (hash(t.id) % 5)}s;--dl:-${hash(t.id) % 8}s">
-    ${t.photos?.length ? `<img class="bph" data-ph="${t.photos[0]}" alt="">` : '<i class="dot"></i>'}<span>${esc(trunc(clean(t.text), 78))}</span></button>`;
+  return `<button class="orb ${t.pinned ? 'pin' : ''} ${Date.now() - t.created < 5000 ? 'fresh' : ''}" data-act="thought" data-id="${t.id}" aria-label="Pensamento: ${esc(trunc(clean(t.text), 90))}"
+    style="--x:${p.x.toFixed(2)};--y:${p.y.toFixed(2)};--s:${s}px;--h:${HUE[c]};--dur:${8 + (hash(t.id) % 5)}s;--dl:-${hash(t.id) % 9}s">
+    ${t.photos?.length ? `<span class="o-ph" data-phbg="${t.photos[0]}"></span>` : ''}<span class="o-glass"></span><span class="o-cap">${esc(trunc(clean(t.text), 40))}</span></button>`;
 }
 function stage(list, mini) {
   const narrow = isNarrow();
-  const max = mini ? (narrow ? 4 : 6) : narrow ? 6 : 7;
+  const SH = mini ? (narrow ? 430 : 480) : narrow ? 540 : 640;
+  const W = Math.max(280, Math.min(document.documentElement.clientWidth - (innerWidth >= 900 ? 230 : 36), 1180) - (mini ? 56 : 8));
+  const max = mini ? (narrow ? 4 : 6) : narrow ? 7 : 12;
   const vis = [...list.filter((t) => t.pinned), ...list.filter((t) => !t.pinned)].slice(0, max);
-  const SH = narrow ? (mini ? 440 : 540) : mini ? 420 : 540;
-  const pos = layoutBubbles(vis.length, narrow, SH);
-  return `<div class="stage" style="--sh:${SH}px">
-    <div class="halo" aria-hidden="true"></div>
-    <div class="bubbles">${vis.map((t, i) => bubbleHtml(t, pos[i])).join('')}</div>
-    <div class="basin basin-target">${Art.basin()}</div>
+  const k = mini || narrow ? 0.92 : 1;
+  const sizes = vis.map((t, i) => (t.pinned ? 78 : i < 4 ? 70 : 60) * k);
+  const bw = Math.min(W * 0.94, 780), bh = bw * (410 / 900);
+  const OH = Math.round(SH - bh * 0.556 - 34);
+  const pos = layoutOrbs(vis, sizes, W, OH);
+  return `<div class="stage ${mini ? 'mini' : ''}" style="--sh:${SH}px;--oh:${OH}px;--bw:${Math.round(bw)}px">
+    <div class="rays" aria-hidden="true"></div>
+    <div class="orbs">${vis.map((t, i) => orbHtml(t, pos[i], sizes[i])).join('')}</div>
+    <div class="basin basin-target"><div class="halo" aria-hidden="true"></div>${Art.basin()}</div>
     ${vis.length ? '' : '<p class="stage-empty">Nenhum pensamento ainda.<br>Escreva ou dite o primeiro.</p>'}
   </div>`;
 }
-
-/* ----- peças ----- */
 const composer = () => `<form class="composer" data-form="quick">
-  <input name="text" placeholder="Anote um pensamento…" autocomplete="off" aria-label="Novo pensamento">
-  <button type="button" class="orb-btn" data-act="dictate" aria-label="Ditar por voz" title="Ditar por voz">${Art.ic('mic')}</button>
-  <button type="button" class="orb-btn" data-act="photo" aria-label="Anexar foto" title="Anexar foto">${Art.ic('foto')}</button>
-  <button class="btn pri">Guardar</button></form>`;
+  <span class="thread-ic" aria-hidden="true">${Art.ic('penseira')}</span>
+  <input name="text" placeholder="Escreva um pensamento…" autocomplete="off" aria-label="Novo pensamento">
+  <button type="button" class="orb-btn" data-act="dictate" aria-label="Ditar por voz">${Art.ic('mic')}</button>
+  <button type="button" class="orb-btn" data-act="photo" aria-label="Guardar foto">${Art.ic('foto')}</button>
+  <button class="gild">Guardar</button></form>`;
 
-const catLabel = (t) => CATS[CATS[t.cat] ? t.cat : 'reflexao'].label;
+/* ----- linhas de lista ----- */
 function memoryRow(t) {
-  return `<button class="srow" data-act="thought" data-id="${t.id}">
-    ${t.photos?.length ? `<img class="ph-th" data-ph="${t.photos[0]}" alt="">` : ''}
-    <span class="rc-main"><span class="rc-t">${fmtText(t.text)}</span><span class="rc-m">${catLabel(t)}${t.photos?.length ? ` · ${t.photos.length} foto${t.photos.length > 1 ? 's' : ''}` : ''}${t.pinned ? ' · fixada' : ''} · ${ago(t.created)}</span></span></button>`;
+  const c = HUE[t.cat] ? t.cat : 'reflexao';
+  return `<button class="srow" data-act="thought" data-id="${t.id}" style="--h:${HUE[c]}">
+    ${t.photos?.length ? `<img class="ph-th" data-ph="${t.photos[0]}" alt="">` : '<span class="dotgem" aria-hidden="true"></span>'}
+    <span class="rc-main"><span class="rc-t">${fmtText(t.text)}</span><span class="rc-m">${CATS[c].label}${t.photos?.length ? ` · ${t.photos.length} foto${t.photos.length > 1 ? 's' : ''}` : ''}${t.pinned ? ' · fixada' : ''} · ${ago(t.created)}</span></span>
+    ${t.pinned ? `<span class="pin-star" aria-label="Fixada">${Art.ic('estrela')}</span>` : ''}</button>`;
 }
-const thoughtCard = (t) => `<button class="tcard ${t.pinned ? 'pin' : ''}" data-act="thought" data-id="${t.id}">
-  ${t.photos?.length ? `<img class="tph" data-ph="${t.photos[0]}" alt="">` : ''}
-  <span class="tt">${fmtText(t.text)}</span>
-  <span class="tm">${t.pinned ? 'Fixada · ' : ''}${ago(t.created)}${t.photos?.length > 1 ? ` · ${t.photos.length} fotos` : ''}</span></button>`;
 function taskLine(t, showArea) {
   const a = showArea ? areaOf(t.areaId) : null;
   return `<div class="tl ${t.done ? 'done' : ''}">
@@ -299,58 +302,66 @@ function agendaRow(it) {
     <span class="when ${dueCls(it.date)}">${relDate(it.date)}${it.time ? `<small>${it.time}</small>` : ''}</span></div>`;
 }
 
-/* ----- o dia numa faixa: das 6h à meia-noite, com o que está marcado e o momento atual ----- */
-function dayStrip() {
-  const from = 6, to = 24, k = dkey(), now = new Date();
-  const pc = (h) => (Math.max(from, Math.min(to, h)) - from) / (to - from) * 100;
+/* ----- seu dia: um arco das 6h à meia-noite, com o que está marcado e o momento atual ----- */
+function dayArc() {
+  const from = 6, to = 24, k = dkey(), now = new Date(), nowH = now.getHours() + now.getMinutes() / 60;
+  const P = (h) => { const t = Math.max(0, Math.min(1, (h - from) / (to - from))), a = Math.PI * (1 - t); return [200 + Math.cos(a) * 165, 186 - Math.sin(a) * 148]; };
   const hm = (s) => { const [h, m] = s.split(':').map(Number); return h + m / 60; };
-  const nowH = now.getHours() + now.getMinutes() / 60;
-  const evs = state.events.filter((e) => e.date === k && e.time && !e.done);
-  return `<div class="strip" role="img" aria-label="${plural(evs.length, 'compromisso com hora', 'compromissos com hora')} hoje; agora são ${pad(now.getHours())}:${pad(now.getMinutes())}">
-    <div class="track"><i class="past" style="width:${pc(nowH)}%"></i>${evs.map((e) => `<b class="ev" style="left:${pc(hm(e.time))}%" title="${esc(e.time)} · ${esc(e.title)}"></b>`).join('')}<i class="now" style="left:${pc(nowH)}%"></i></div>
-    <div class="hrs"><span>6h</span><span>12h</span><span>18h</span><span>24h</span></div></div>`;
+  const evs = state.events.filter((e) => e.date === k && e.time && !e.done).sort((a, b) => a.time.localeCompare(b.time)).slice(0, 5);
+  const ths = state.thoughts.filter((t) => dkey(new Date(t.created)) === k && new Date(t.created).getHours() >= from);
+  const [mx, my] = P(nowH);
+  const marks = [6, 12, 18, 24].map((h) => { const [x, y] = P(h); return `<text x="${x.toFixed(0)}" y="${h === 12 ? (y - 14).toFixed(0) : 206}" text-anchor="middle" class="ah">${pad(h % 24)}H</text>`; }).join('');
+  const sparks = ths.map((t) => { const d = new Date(t.created), [x, y] = P(d.getHours() + d.getMinutes() / 60); return `<circle cx="${x.toFixed(1)}" cy="${(y + 9).toFixed(1)}" r="1.5" class="th"/>`; }).join('');
+  const stars = evs.map((e, i) => { const [x, y] = P(hm(e.time)); return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)})" class="evs"><circle r="3.6"/><text y="${i % 2 ? 24 : -12}" text-anchor="middle">${esc(trunc(e.title, 14))}</text></g>`; }).join('');
+  return `<svg class="arc" viewBox="0 0 400 214" role="img" aria-label="${plural(evs.length, 'compromisso', 'compromissos')} hoje; agora são ${pad(now.getHours())}:${pad(now.getMinutes())}">
+    <path d="M35 186A165 148 0 0 1 365 186" class="track"/><path d="M20 186H380" class="horizon"/>${marks}${sparks}${stars}
+    <g class="nowdot" transform="translate(${mx.toFixed(1)} ${my.toFixed(1)})"><circle r="10"/><circle r="3.6"/></g>
+  </svg>`;
+}
+
+function notebookList() {
+  return `<div class="nblist">${state.areas.map((a, i) => {
+    const open = state.tasks.filter((t) => t.areaId === a.id && !t.done).length;
+    return `<button class="nbrow" data-act="book" data-id="${a.id}" style="--tone:${TONES[i % 6]}"><span class="sw"></span><b>${esc(a.name)}</b><span class="c">${plural(open, 'aberta', 'abertas')}</span></button>`;
+  }).join('') || empty('Crie sua primeira frente de trabalho.')}</div>`;
 }
 
 /* ===== Hoje ===== */
 function vHoje() {
-  const k = dkey(), now = new Date();
+  const k = dkey();
   const p = currentPhrase();
   const goals = state.goals, doneN = goals.filter((g) => goalDone(g)).length;
   const live = liveThoughts();
   const stars = state.tasks.filter((t) => t.star && !t.done).slice(0, 3);
-  const evsToday = state.events.filter((e) => e.date === k && !e.done);
-  const dayItems = agendaItems().filter((i) => !i.done && diffDays(i.date) <= 0).slice(0, 8);
+  const evsToday = state.events.filter((e) => e.date === k && !e.done).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+  const next = agendaItems().filter((i) => !i.done && diffDays(i.date) >= 0).slice(0, 3);
   const late = state.tasks.filter((t) => !t.done && t.due && diffDays(t.due) < 0).length;
-  const parts = [];
-  if (late) parts.push(plural(late, 'tarefa atrasada', 'tarefas atrasadas'));
-  parts.push(evsToday.length ? plural(evsToday.length, 'compromisso hoje', 'compromissos hoje') : 'nenhum compromisso hoje');
-  if (goals.length) parts.push(`${doneN} de ${goals.length} metas`);
-  const wd = now.toLocaleDateString('pt-BR', { weekday: 'long' }), dm = now.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+  const lede = late ? `${plural(late, 'tarefa atrasada espera', 'tarefas atrasadas esperam')} por você.` : evsToday.length ? `${plural(evsToday.length, 'compromisso', 'compromissos')} hoje.` : 'Um dia livre para pensar.';
   return `
-  <header class="hd"><div><h1 class="t-main">${wd.charAt(0).toUpperCase() + wd.slice(1)}, ${dm}</h1><p class="sub">${parts.join(' · ')}</p></div></header>
-  <div class="home">
-    <div class="main">
-      <section class="blk"><div class="fh"><h2>Hoje</h2><span class="sp"></span><button class="link" data-act="go" data-view="agenda">Abrir a agenda</button></div>
-        ${dayStrip()}
-        ${dayItems.length ? dayItems.map(agendaRow).join('') : empty('Nada marcado para hoje.')}</section>
-      <section class="blk"><div class="fh"><h2>Penseira</h2><span class="faint">${plural(live.length, 'pensamento', 'pensamentos')}</span><span class="sp"></span><button class="link" data-act="go" data-view="penseira">Ver todos</button></div>
-        ${stage(live, true)}
-        ${composer()}</section>
-    </div>
-    <aside class="side">
-      <section class="phrase"><span class="lbl">Para lembrar agora</span>
-        ${p ? `<blockquote>${esc(p.text)}</blockquote>${p.author ? `<cite>${esc(p.author)}</cite>` : ''}
-        <div class="acts"><button class="ghost sm" data-act="phraseNext">Outra frase</button>
-        <button class="favbtn ${p.fav ? 'on' : ''}" data-act="phraseFav" data-id="${p.id}" aria-pressed="${!!p.fav}">${Art.ic('estrela')}<span>${p.fav ? 'Favorita' : 'Favoritar'}</span></button></div>`
-        : `<blockquote>Guarde aqui as frases que você precisa lembrar.</blockquote><div class="acts"><button class="ghost sm" data-act="phraseAdd">Escrever uma frase</button></div>`}</section>
-      <section class="blk"><div class="fh"><h2>Metas de hoje</h2><span class="sp"></span><span class="faint">${doneN} de ${goals.length}</span></div>
-        ${goals.length ? goals.map((g) => `<div class="tl ${goalDone(g) ? 'done' : ''}"><button class="ck" data-act="goalToggle" data-id="${g.id}" aria-label="${goalDone(g) ? 'Desfazer' : 'Cumprir'}: ${esc(g.text)}">${Art.ic('check')}</button>
-          <button class="t" data-act="goalEdit" data-id="${g.id}">${esc(g.text)}</button>${streak(g) > 1 ? `<span class="due">${streak(g)} dias</span>` : ''}</div>`).join('') : empty('Crie sua primeira meta diária.')}
-        <form class="addrow" data-form="goalAdd"><input class="in" name="text" placeholder="Nova meta diária" autocomplete="off" aria-label="Nova meta diária"><button class="ghost sm">Criar</button></form></section>
-      <section class="blk"><div class="fh"><h2>Frentes</h2><span class="sp"></span><button class="link" data-act="go" data-view="frentes">Abrir</button></div>
-        ${state.areas.map((a) => `<button class="nbrow" data-act="book" data-id="${a.id}"><b>${esc(a.name)}</b><span class="c">${plural(state.tasks.filter((t) => t.areaId === a.id && !t.done).length, 'aberta', 'abertas')}</span></button>`).join('') || empty('Crie sua primeira frente de trabalho.')}
-        ${stars.length ? `<h3 class="mini-h">Prioridades</h3>${stars.map((t) => taskLine(t, true)).join('')}` : ''}</section>
-    </aside>
+  <header class="hero">
+    <div class="greet"><p class="lbl">${fmtDay(k)}</p><h1 class="t-main">${greeting()}</h1>
+      <p class="lede">${lede}</p></div>
+    ${frame('whisper', `<span class="lbl">Para lembrar agora</span>
+      ${p ? `<blockquote>${esc(p.text)}</blockquote>${p.author ? `<cite>${esc(p.author)}</cite>` : ''}
+      <div class="acts"><button class="ghost" data-act="phraseNext">Outra frase</button>
+      <button class="favbtn ${p.fav ? 'on' : ''}" data-act="phraseFav" data-id="${p.id}" aria-pressed="${!!p.fav}">${Art.ic('estrela')}<span>${p.fav ? 'Favorita' : 'Favoritar'}</span></button></div>`
+      : `<blockquote>Guarde aqui as frases que você precisa lembrar.</blockquote><div class="acts"><button class="ghost" data-act="phraseAdd">Escrever uma frase</button></div>`}`)}
+  </header>
+
+  ${frame('pensieve', `<div class="fh"><h2>A Penseira</h2><span class="faint">${plural(live.length, 'pensamento', 'pensamentos')}</span><span class="sp"></span><button class="ghost" data-act="go" data-view="penseira">Abrir</button></div>
+    ${stage(live, true)}${composer()}`)}
+
+  <div class="trio">
+    ${frame('rituals', `<div class="fh"><h2>Metas de hoje</h2></div>
+      <div class="dial-wrap">${Art.dial(goals, goalDone)}</div>
+      ${goals.length ? goals.map((g) => `<div class="tl ${goalDone(g) ? 'done' : ''}"><button class="ck" data-act="goalToggle" data-id="${g.id}" aria-label="${goalDone(g) ? 'Desfazer' : 'Cumprir'}: ${esc(g.text)}">${Art.ic('check')}</button>
+        <button class="t" data-act="goalEdit" data-id="${g.id}">${esc(g.text)}</button>${streak(g) > 1 ? `<span class="due">${streak(g)} dias seguidos</span>` : ''}</div>`).join('') : empty('Crie sua primeira meta diária.')}
+      <form class="addrow" data-form="goalAdd"><input class="in" name="text" placeholder="Uma nova meta diária" autocomplete="off" aria-label="Nova meta diária"><button class="ghost">Criar</button></form>`)}
+    ${frame('arcbox', `<div class="fh"><h2>Seu dia</h2></div>${dayArc()}
+      ${next.length ? next.map(agendaRow).join('') : empty('Nada marcado para hoje.')}
+      <div class="foot"><button class="link" data-act="go" data-view="agenda">Abrir a agenda</button></div>`)}
+    ${frame('nbbox', `<div class="fh"><h2>Frentes</h2></div>${notebookList()}
+      ${stars.length ? `<h3 class="mini-h">Prioridades</h3>${stars.map((t) => taskLine(t, true)).join('')}` : ''}`)}
   </div>`;
 }
 
@@ -358,7 +369,7 @@ function vHoje() {
 function vPenseira() {
   const live = liveThoughts();
   const q = norm(ui.q);
-  const mode = ['lista', 'quadro'].includes(state.settings.mode) ? state.settings.mode : 'penseira';
+  const mode = state.settings.mode === 'lista' ? 'lista' : 'penseira';
   const allTags = [...new Set(live.flatMap((t) => t.tags))].sort();
   let list = state.thoughts.filter((t) => (ui.tf === 'resolvidos' ? t.done : !t.done));
   if (CATS[ui.tf]) list = list.filter((t) => t.cat === ui.tf);
@@ -368,22 +379,18 @@ function vPenseira() {
   const count = (c) => live.filter((t) => t.cat === c).length;
   const nFazer = count('fazer');
   const resolved = state.thoughts.filter((t) => t.done).length;
-  const tab = (id, label, n) => `<button class="ftab ${ui.tf === id ? 'on' : ''}" data-act="filter" data-f="${id}">${esc(label)}<b>${n}</b></button>`;
-  const tabs = [tab('todas', 'Todas', live.length), ...Object.entries(CATS).filter(([c]) => count(c) || ui.tf === c).map(([c, v]) => tab(c, v.label, count(c))), ...allTags.map((g) => tab('#' + g, '#' + g, live.filter((t) => t.tags.includes(g)).length)), ...(resolved ? [tab('resolvidos', 'Resolvidas', resolved)] : [])].join('');
-  const modes = [['penseira', 'Visual'], ['quadro', 'Quadro'], ['lista', 'Lista']].map(([m, l]) => `<button class="seg ${mode === m ? 'on' : ''}" data-act="mode" data-m="${m}" aria-pressed="${mode === m}">${l}</button>`).join('');
-  let body;
-  if (mode === 'penseira') body = `${stage(list, false)}${list.length > (isNarrow() ? 6 : 7) ? `<p class="side-note">Aqui aparecem os mais recentes. Veja todos no <button class="link" data-act="mode" data-m="quadro">Quadro</button>.</p>` : ''}`;
-  else if (!list.length) body = empty(state.thoughts.length ? 'Nenhum pensamento com esse filtro.' : 'Escreva um pensamento acima.');
-  else if (mode === 'quadro') {
-    const cols = Object.entries(CATS).map(([c, v]) => [c, v, list.filter((t) => (CATS[t.cat] ? t.cat : 'reflexao') === c)]).filter(([, , l]) => l.length);
-    body = `<div class="board">${cols.map(([c, v, l]) => `<section class="bcol"><h3>${v.label}<b>${l.length}</b></h3>${l.map(thoughtCard).join('')}</section>`).join('')}</div>`;
-  } else body = `<div class="rows">${list.map(memoryRow).join('')}</div>`;
+  const gem = (id, label, n, h) => `<button class="gemchip ${ui.tf === id ? 'on' : ''}" ${h != null ? `style="--h:${h}"` : ''} data-act="filter" data-f="${id}"><i></i>${esc(label)}<b>${n}</b></button>`;
+  const chips = [gem('todas', 'Todas', live.length), ...Object.entries(CATS).filter(([c]) => count(c) || ui.tf === c).map(([c, v]) => gem(c, v.label, count(c), HUE[c])), ...allTags.map((g) => gem('#' + g, '#' + g, live.filter((t) => t.tags.includes(g)).length)), ...(resolved ? [gem('resolvidos', 'Resolvidas', resolved)] : [])].join('');
+  const modes = [['penseira', 'Visual'], ['lista', 'Lista']].map(([m, l]) => `<button class="seg ${mode === m ? 'on' : ''}" data-act="mode" data-m="${m}" aria-pressed="${mode === m}">${l}</button>`).join('');
+  const lim = isNarrow() ? 7 : 12;
+  const body = mode === 'penseira'
+    ? frame('pensieve big', `${stage(list, false)}${composer()}${list.length > lim ? `<p class="more">Aqui aparecem os ${lim} pensamentos mais recentes. Veja todos em <button class="link" data-act="mode" data-m="lista">Lista</button>.</p>` : ''}`)
+    : frame('listbox', `${composer()}<div style="margin-top:8px">${list.length ? list.map(memoryRow).join('') : empty(state.thoughts.length ? 'Nenhum pensamento com esse filtro.' : 'Escreva um pensamento acima.')}</div>`);
   return `
   <header class="hd"><div><h1 class="t-main">Penseira</h1><p class="sub">${plural(live.length, 'pensamento', 'pensamentos')}${nFazer ? ` · ${nFazer} para fazer` : ''}${ui.q ? ` · busca por “${esc(ui.q)}”` : ''}</p></div>
     <div class="hd-r">${ui.q ? '<button class="ghost" data-act="clearSearch">Limpar busca</button>' : ''}${nFazer ? `<button class="ghost" data-act="organize">Transformar em tarefas (${nFazer})</button>` : ''}<div class="segs" role="group" aria-label="Modo de ver">${modes}</div></div></header>
-  ${composer()}
-  <input class="in m-only" data-input="gsearch" placeholder="Buscar nos pensamentos" value="${esc(ui.q)}" aria-label="Buscar nos pensamentos" style="margin-top:12px">
-  <div class="ftabs" role="group" aria-label="Filtrar por categoria">${tabs}</div>
+  <input class="in m-only" data-input="gsearch" placeholder="Buscar nos pensamentos" value="${esc(ui.q)}" aria-label="Buscar nos pensamentos" style="margin-bottom:12px">
+  <div class="gemrow" role="group" aria-label="Filtrar por categoria">${chips}</div>
   ${body}`;
 }
 
@@ -392,25 +399,28 @@ function vFrentes() {
   if (!areaOf(ui.book)) ui.book = state.areas[0]?.id || null;
   const a = areaOf(ui.book);
   const nOpen = state.tasks.filter((t) => !t.done).length;
-  const list = state.areas.map((x) => {
-    const open = state.tasks.filter((t) => t.areaId === x.id && !t.done).length;
-    return `<button class="nbrow ${x.id === ui.book ? 'sel' : ''}" data-act="book" data-id="${x.id}" aria-pressed="${x.id === ui.book}"><b>${esc(x.name)}</b><span class="c">${open}</span></button>`;
-  }).join('') + `<button class="nbrow add" data-act="areaAdd">+ Nova frente</button>`;
+  const cards = state.areas.map((x, i) => {
+    const all = state.tasks.filter((t) => t.areaId === x.id), open = all.filter((t) => !t.done).length, pct = all.length ? Math.round(((all.length - open) / all.length) * 100) : 0;
+    return `<button class="nb ${x.id === ui.book ? 'sel' : ''}" data-act="book" data-id="${x.id}" style="--tone:${TONES[i % 6]}" aria-pressed="${x.id === ui.book}"><h3>${esc(x.name)}</h3><span class="meta">${plural(open, 'aberta', 'abertas')}</span><span class="bar"><u style="width:${pct}%"></u></span></button>`;
+  }).join('') + `<button class="nb new" data-act="areaAdd"><span>+ Nova frente</span></button>`;
   let detail = '';
   if (a) {
     const all = state.tasks.filter((t) => t.areaId === a.id);
     const open = all.filter((t) => !t.done).sort((x, y) => (y.star || 0) - (x.star || 0) || (x.due || '9').localeCompare(y.due || '9'));
     const done = all.filter((t) => t.done);
-    detail = `<div class="pane">
-      <div class="fh"><h2 class="big">${esc(a.name)}</h2><span class="faint">${done.length} de ${all.length} concluídas</span><span class="sp"></span><button class="ghost sm" data-act="areaEdit" data-id="${a.id}">Editar</button></div>
-      <form class="addrow" data-form="taskAdd" data-area="${a.id}"><input class="in" name="text" placeholder="Nova tarefa em ${esc(a.name)}" autocomplete="off" aria-label="Nova tarefa em ${esc(a.name)}"><button class="btn pri">Adicionar</button></form>
-      ${open.map((t) => taskLine(t)).join('') || empty('Nenhuma tarefa aberta.')}
-      ${done.length ? `<details class="doneblk"><summary>Concluídas (${done.length})</summary>${done.slice(0, 20).map((t) => taskLine(t)).join('')}</details>` : ''}
+    const pct = all.length ? Math.round((done.length / all.length) * 100) : 0;
+    detail = `<div class="cols2">
+      ${frame('open', `<div class="ph"><h2>${esc(a.name)}</h2><button class="ghost" data-act="areaEdit" data-id="${a.id}">Editar</button></div>
+        <div class="prog" role="img" aria-label="${done.length} de ${all.length} concluídas"><span>${done.length} de ${all.length} concluídas</span><i><u style="width:${pct}%"></u></i></div>
+        ${open.map((t) => taskLine(t)).join('') || empty('Nenhuma tarefa aberta.')}`)}
+      ${frame('add', `<h3 class="mini-h" style="margin-top:0">Nova tarefa</h3>
+        <form class="addrow" data-form="taskAdd" data-area="${a.id}" style="margin-top:10px"><input class="in" name="text" placeholder="O que precisa ser feito?" autocomplete="off" aria-label="Nova tarefa em ${esc(a.name)}"><button class="gild">Adicionar</button></form>
+        ${done.length ? `<h3 class="mini-h">Concluídas</h3>${done.slice(0, 12).map((t) => taskLine(t)).join('')}` : '<p class="side-note">As tarefas concluídas ficam guardadas aqui.</p>'}`)}
     </div>`;
   }
   return `
   <header class="hd"><div><h1 class="t-main">Frentes</h1><p class="sub">${plural(nOpen, 'tarefa aberta', 'tarefas abertas')} em ${plural(state.areas.length, 'frente', 'frentes')}</p></div></header>
-  <div class="split"><nav class="fronts" aria-label="Frentes de trabalho">${list}</nav>${detail}</div>`;
+  <div class="notebooks">${cards}</div>${detail}`;
 }
 
 /* ===== Agenda ===== */
@@ -422,12 +432,12 @@ function vAgenda() {
   const blocks = groups.map(([name, f]) => {
     const g = open.filter((i) => f(diffDays(i.date)));
     if (!g.length) return '';
-    return `<section class="blk"><div class="fh"><h2>${name}</h2><span class="faint">${g.length}</span></div>${g.map(agendaRow).join('')}</section>`;
+    return frame('agbox', `<div class="fh"><h2>${name}</h2><span class="faint">${plural(g.length, 'item', 'itens')}</span></div>${g.map(agendaRow).join('')}`);
   }).join('');
   return `
-  <header class="hd"><div><h1 class="t-main">Agenda</h1><p class="sub">${plural(open.length, 'item pendente', 'itens pendentes')} · compromissos e prazos</p></div><div class="hd-r"><button class="btn pri" data-act="eventAdd">Novo compromisso</button></div></header>
-  <div class="narrow">${blocks || empty('A agenda está livre. Marque um compromisso.')}
-  ${done.length ? `<details class="doneblk"><summary>Concluídos recentes</summary>${done.map(agendaRow).join('')}</details>` : ''}</div>`;
+  <header class="hd"><div><h1 class="t-main">Agenda</h1><p class="sub">${plural(open.length, 'item pendente', 'itens pendentes')} · compromissos e prazos</p></div><div class="hd-r"><button class="gild" data-act="eventAdd">Novo compromisso</button></div></header>
+  <div class="narrow stack">${blocks || frame('agbox', empty('A agenda está livre. Marque um compromisso.'))}
+  ${done.length ? frame('agbox', `<details><summary>Concluídos recentes</summary><div style="margin-top:12px">${done.map(agendaRow).join('')}</div></details>`) : ''}</div>`;
 }
 
 /* ===== Frases ===== */
@@ -438,11 +448,11 @@ function vFrases() {
   const list = state.phrases.filter((p) => (f === 'todas' ? true : f === 'fav' ? p.fav : catOf(p) === f));
   const chips = [['todas', 'Todas'], ['fav', 'Favoritas'], ...PCATS.map((c) => [c, c]), ['Minhas', 'Minhas']];
   return `
-  <header class="hd"><div><h1 class="t-main">Frases</h1><p class="sub">${plural(state.phrases.length, 'frase guardada', 'frases guardadas')} para lembrar durante o dia</p></div><div class="hd-r"><button class="btn pri" data-act="phraseAdd">Nova frase</button></div></header>
-  <div class="ftabs">${chips.map(([k, l]) => `<button class="ftab ${f === k ? 'on' : ''}" data-act="pfilter" data-k="${k}">${l}</button>`).join('')}</div>
-  <div class="quotes">${list.map((p) => `<article class="qcard"><q>${esc(p.text)}</q>${p.author ? `<cite>${esc(p.author)}</cite>` : ''}
+  <header class="hd"><div><h1 class="t-main">Frases</h1><p class="sub">${plural(state.phrases.length, 'frase guardada', 'frases guardadas')} para lembrar durante o dia</p></div><div class="hd-r"><button class="gild" data-act="phraseAdd">Nova frase</button></div></header>
+  <div class="chips" style="margin-bottom:18px">${chips.map(([k, l]) => `<button class="chip ${f === k ? 'on' : ''}" data-act="pfilter" data-k="${k}">${l}</button>`).join('')}</div>
+  <div class="quotes">${list.map((p) => `<article class="qcard"><div><q>${esc(p.text)}</q>${p.author ? `<cite>${esc(p.author)}</cite>` : ''}</div>
     <div class="qacts"><button class="favbtn ${p.fav ? 'on' : ''}" data-act="phraseFav" data-id="${p.id}" aria-pressed="${!!p.fav}">${Art.ic('estrela')}<span>${p.fav ? 'Favorita' : 'Favoritar'}</span></button>
-    <button class="link" data-act="phraseEdit" data-id="${p.id}">Editar</button></div></article>`).join('') || empty('Nenhuma frase aqui ainda.')}</div>`;
+    <button class="link" data-act="phraseEdit" data-id="${p.id}">Editar</button></div></article>`).join('') || frame('agbox', empty('Nenhuma frase aqui ainda.'))}</div>`;
 }
 
 /* ===== Ajustes ===== */
@@ -492,11 +502,11 @@ function renderTop() {
     <label class="search">${Art.ic('lupa')}<input data-input="gsearch" placeholder="Buscar nos pensamentos" value="${esc(ui.q)}" aria-label="Buscar nos pensamentos"></label>
     <span class="grow"></span>
     <button class="orb-btn" data-act="speak" aria-label="Ditar um pensamento" title="Ditar um pensamento">${Art.ic('mic')}</button>
-    <button class="btn pri" data-act="capture">${Art.ic('pena')}<span>Registrar</span></button>
+    <button class="gild" data-act="capture">${Art.ic('pena')}<span>Registrar</span></button>
     <button class="orb-btn only-m" data-act="go" data-view="ajustes" aria-label="Ajustes">${Art.ic('ajustes')}</button>`;
 }
 function renderNav() {
-  $('#side').innerHTML = `<div class="brand"><img class="emblem" src="icons/icon.svg" alt=""><b>${esc(APP_NAME)}</b></div><nav class="rail-nav" aria-label="Principal">` +
+  $('#side').innerHTML = `<div class="brand"><span class="emblem"><img src="icons/icon.svg" alt=""></span><b>${esc(APP_NAME)}</b></div><nav class="rail-nav" aria-label="Principal">` +
     VIEWS.map(([id, l, i]) => `<button class="nav ${view === id ? 'on' : ''}" data-act="go" data-view="${id}"${view === id ? ' aria-current="page"' : ''}>${Art.ic(i)}<span class="nl">${l}</span></button>`).join('') +
     `</nav><div class="sp"></div>`;
   $('#tabs').innerHTML = VIEWS.filter(([id]) => BAR.includes(id)).map(([id, l, i]) => `<button class="${view === id ? 'on' : ''}" data-act="go" data-view="${id}" aria-label="${l}"${view === id ? ' aria-current="page"' : ''}>${Art.ic(i)}<span>${l}</span></button>`).join('');
@@ -514,6 +524,7 @@ function go(id) {
   if (!RENDER[id]) id = 'hoje';
   view = id;
   if (location.hash !== '#' + id) history.replaceState(null, '', '#' + id);
+  const v = $('#view'); v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); clearTimeout(go.t); go.t = setTimeout(() => v.classList.remove('enter'), 1100);
   render();
   window.scrollTo(0, 0);
 }
@@ -521,7 +532,7 @@ function go(id) {
 /* ---------- sheet / toast ---------- */
 const sheet = $('#sheet');
 function openSheet(title, html, bind) {
-  sheet.innerHTML = `<div class="scrim" data-act="closeSheet"></div><form class="panel-s" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div><h2>${esc(title)}</h2>${html}</form>`;
+  sheet.innerHTML = `<div class="scrim" data-act="closeSheet"></div><form class="panel-s" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div>${Art.corners()}<h2>${esc(title)}</h2>${Art.divider()}${html}</form>`;
   sheet.classList.add('open');
   document.body.classList.add('noscroll');
   const f = $('.panel-s', sheet);
