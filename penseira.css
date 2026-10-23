@@ -271,9 +271,7 @@ body{background:#060a1a}
   radial-gradient(60vw 40vh at 50% 118%,rgba(40,100,200,.22),transparent 70%);animation:drift 38s ease-in-out infinite alternate}
 @keyframes drift{to{transform:translate(2.5%,-2%) scale(1.06)}}
 #sky{position:fixed;inset:0;z-index:0;pointer-events:none}
-#app,#sheet,#toast,#upd{position:relative;z-index:1}
-#sheet{position:fixed}#toast,#upd{position:fixed}
-#app{z-index:2}
+#app{position:relative;z-index:2}
 .top,.rail,.tabs{background:rgba(6,10,26,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 
 /* ---------- tipografia de assinatura ---------- */
