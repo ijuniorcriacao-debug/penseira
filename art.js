@@ -2,6 +2,7 @@
 /* Arte da Penseira, toda em SVG: ícones de traço fino, a lua do dia, a bacia e o mostrador das metas. */
 const Art = (() => {
   const SIG = {
+    foto: '<path d="M4 8.5a1.5 1.5 0 0 1 1.5-1.5H8l1.3-2h5.4L16 7h2.5A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.3"/>',
     hoje: '<path d="M20 14.5A8 8 0 1 1 9.6 4a6.4 6.4 0 0 0 10.4 10.5z"/>',
     penseira: '<path d="M3.5 12.5h17"/><path d="M4.5 12.5c.5 4 3.6 7 7.5 7s7-3 7.5-7"/><path d="M9 20.5h6"/><path d="M12 10.5c-2.2-1.7 1.6-3 0-5.2"/>',
     frentes: '<path d="M6 3.5h11a2 2 0 0 1 2 2v14H8a2 2 0 0 1-2-2z"/><path d="M6 17.5a2 2 0 0 1 2-2h11"/>',

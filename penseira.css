@@ -352,3 +352,15 @@ textarea.in{min-height:108px;resize:vertical;line-height:1.35}
 #upd .ib-x:hover{color:var(--moon)}
 @keyframes updin{from{opacity:0;transform:translate(-50%,16px)}}
 @media(min-width:900px){#upd{bottom:34px;left:auto;right:36px;transform:none}@keyframes updin{from{opacity:0;transform:translateY(16px)}}}
+
+/* fotos */
+.ph-grid{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 12px}
+.ph-grid:empty{display:none}
+.ph-grid figure{position:relative;margin:0;width:92px;height:92px;border-radius:12px;overflow:hidden;border:1px solid var(--hair2);background:#0b1124}
+.ph-grid img{width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in}
+.ph-x{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(5,7,14,.78);color:var(--moon);font-size:17px;line-height:1}
+.ph-th{width:46px;height:46px;border-radius:10px;object-fit:cover;border:1px solid var(--hair2);flex:none;background:#0b1124}
+.o-ph{position:absolute;inset:5px;border-radius:50%;background-size:cover;background-position:center;opacity:.9}
+.lb{position:fixed;inset:0;z-index:120;display:grid;place-items:center;background:rgba(3,5,12,.92);cursor:zoom-out}
+.lb img{max-width:94vw;max-height:88vh;border-radius:10px}
+.lb .ib-x{position:absolute;top:18px;right:18px;width:42px;height:42px;font-size:30px;color:var(--moon)}

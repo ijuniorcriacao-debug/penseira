@@ -1,7 +1,7 @@
 'use strict';
 /* Penseira — dados ficam no aparelho (localStorage). Sem servidor, sem conta. */
 
-const APP_VERSION = '1.1.1'; // mantenha igual ao VERSION do sw.js a cada publicação
+const APP_VERSION = '1.2.0'; // mantenha igual ao VERSION do sw.js a cada publicação
 const APP_NAME = 'Penseira'; // nome do produto: troque aqui (e em index.html / manifest.webmanifest) para renomear
 const KEY = 'penseira:v1';
 const $ = (s, r = document) => r.querySelector(s);
@@ -38,6 +38,7 @@ function defaults() {
       { id: uid(), text: 'Respira. Qual é o passo mais simples agora?', author: '', fav: false },
       { id: uid(), text: 'O que está na lista não precisa ficar na cabeça. A cabeça é para pensar.', author: '', fav: false },
     ],
+    libV: 0,
     areas: [
       { id: 'a1', name: 'Trabalho' },
       { id: 'a2', name: 'Projetos' },
@@ -65,6 +66,13 @@ function load() {
   return defaults();
 }
 let state = load();
+/* biblioteca de frases: entra uma vez por versão, sem repetir nem trazer de volta o que foi apagado */
+function mergeLibrary() {
+  if (!window.FRASES || (state.libV || 0) >= window.FRASES_V) return;
+  const have = new Set(state.phrases.map((p) => norm(p.text)));
+  window.FRASES.forEach(([cat, text, author], i) => { if (!have.has(norm(text))) state.phrases.push({ id: 'lib' + i + uid(), text, author, fav: false, cat }); });
+  state.libV = window.FRASES_V; save();
+}
 let saveFailed = false;
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(state)); saveFailed = false; }
@@ -88,14 +96,65 @@ function areaFromTags(tags) {
   return state.areas.find((a) => tags.includes(norm(a.name)) || tags.includes(norm(a.name).split(/\s+/)[0]));
 }
 
-function addThought(text, cat) {
-  text = text.trim();
+function addThought(text, cat, photos = []) {
+  text = text.trim() || (photos.length ? 'Foto' : '');
   if (!text) return null;
   const t = { id: uid(), text, cat: cat || classify(text), tags: tagsOf(text), pinned: false, done: false, created: Date.now() };
+  if (photos.length) t.photos = photos;
   state.thoughts.unshift(t);
   save();
   return t;
 }
+
+/* ---------- fotos: ficam no aparelho (IndexedDB), reduzidas antes de guardar ---------- */
+const PH = {
+  db: null,
+  open() {
+    return (this.db ||= new Promise((res, rej) => {
+      const q = indexedDB.open('penseira-fotos', 1);
+      q.onupgradeneeded = () => q.result.createObjectStore('p');
+      q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+    }));
+  },
+  async run(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => { const t = db.transaction('p', mode); const r = fn(t.objectStore('p')); t.oncomplete = () => res(r.result); t.onerror = () => rej(t.error); });
+  },
+  put(id, blob) { return this.run('readwrite', (st) => st.put(blob, id)); },
+  get(id) { return this.run('readonly', (st) => st.get(id)); },
+  del(ids) { return this.run('readwrite', (st) => ids.forEach((i) => st.delete(i))).catch(() => {}); },
+  clear() { return this.run('readwrite', (st) => st.clear()).catch(() => {}); },
+  urls: new Map(),
+  async url(id) {
+    if (this.urls.has(id)) return this.urls.get(id);
+    const b = await this.get(id); if (!b) return '';
+    const u = URL.createObjectURL(b); this.urls.set(id, u); return u;
+  },
+};
+async function shrinkPhoto(file) {
+  try {
+    const bmp = await createImageBitmap(file), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.82));
+    return blob || file;
+  } catch (e) { return file; }
+}
+/* preenche <img data-ph> e fundos [data-phbg] com as fotos guardadas */
+async function hydratePhotos(root = document) {
+  for (const el of root.querySelectorAll('[data-ph],[data-phbg]')) {
+    const id = el.dataset.ph || el.dataset.phbg;
+    try { const u = await PH.url(id); if (!u) continue; if (el.dataset.ph) el.src = u; else el.style.backgroundImage = `url(${u})`; } catch (e) { /* ignora */ }
+  }
+}
+function lightbox(id) {
+  PH.url(id).then((u) => {
+    if (!u) return;
+    const lb = document.createElement('div'); lb.className = 'lb'; lb.innerHTML = `<img alt="Foto"><button class="ib-x" aria-label="Fechar">&times;</button>`;
+    lb.querySelector('img').src = u; lb.onclick = () => lb.remove(); document.body.appendChild(lb);
+  });
+}
+const photoPick = () => `<input type="file" accept="image/*" multiple class="hide" data-photo-in>`;
 
 const liveThoughts = () => state.thoughts.filter((t) => !t.done);
 
@@ -189,7 +248,7 @@ function orbHtml(t, p, s) {
   const c = HUE[t.cat] ? t.cat : 'reflexao';
   return `<button class="orb ${t.pinned ? 'pin' : ''} ${Date.now() - t.created < 5000 ? 'fresh' : ''}" data-act="thought" data-id="${t.id}" aria-label="Pensamento: ${esc(trunc(clean(t.text), 90))}"
     style="--x:${p.x.toFixed(2)};--y:${p.y.toFixed(2)};--s:${s}px;--h:${HUE[c]};--dur:${8 + (hash(t.id) % 5)}s;--dl:-${hash(t.id) % 9}s">
-    <span class="o-glass"></span><span class="o-cap">${esc(trunc(clean(t.text), 40))}</span></button>`;
+    ${t.photos?.length ? `<span class="o-ph" data-phbg="${t.photos[0]}"></span>` : ''}<span class="o-glass"></span><span class="o-cap">${esc(trunc(clean(t.text), 40))}</span></button>`;
 }
 function stage(list, mini) {
   const narrow = isNarrow();
@@ -213,14 +272,15 @@ const composer = () => `<form class="composer" data-form="quick">
   <span class="thread-ic" aria-hidden="true">${Art.ic('penseira')}</span>
   <input name="text" placeholder="Escreva um pensamento…" autocomplete="off" aria-label="Novo pensamento">
   <button type="button" class="orb-btn" data-act="dictate" aria-label="Ditar por voz">${Art.ic('mic')}</button>
+  <button type="button" class="orb-btn" data-act="photo" aria-label="Guardar foto">${Art.ic('foto')}</button>
   <button class="gild">Guardar</button></form>`;
 
 /* ----- linhas de lista ----- */
 function memoryRow(t) {
   const c = HUE[t.cat] ? t.cat : 'reflexao';
   return `<button class="srow" data-act="thought" data-id="${t.id}" style="--h:${HUE[c]}">
-    <span class="dotgem" aria-hidden="true"></span>
-    <span class="rc-main"><span class="rc-t">${fmtText(t.text)}</span><span class="rc-m">${CATS[c].label}${t.pinned ? ' · fixada' : ''} · ${ago(t.created)}</span></span>
+    ${t.photos?.length ? `<img class="ph-th" data-ph="${t.photos[0]}" alt="">` : '<span class="dotgem" aria-hidden="true"></span>'}
+    <span class="rc-main"><span class="rc-t">${fmtText(t.text)}</span><span class="rc-m">${CATS[c].label}${t.photos?.length ? ` · ${t.photos.length} foto${t.photos.length > 1 ? 's' : ''}` : ''}${t.pinned ? ' · fixada' : ''} · ${ago(t.created)}</span></span>
     ${t.pinned ? `<span class="pin-star" aria-label="Fixada">${Art.ic('estrela')}</span>` : ''}</button>`;
 }
 function taskLine(t, showArea) {
@@ -378,12 +438,18 @@ function vAgenda() {
 }
 
 /* ===== Frases ===== */
+const PCATS = ['Provérbios', 'Cinema', 'Motivação', 'Pensadores'];
 function vFrases() {
+  const f = ui.pf || 'todas';
+  const catOf = (p) => p.cat || 'Minhas';
+  const list = state.phrases.filter((p) => (f === 'todas' ? true : f === 'fav' ? p.fav : catOf(p) === f));
+  const chips = [['todas', 'Todas'], ['fav', 'Favoritas'], ...PCATS.map((c) => [c, c]), ['Minhas', 'Minhas']];
   return `
   <header class="hd"><div><h1 class="t-main">Frases</h1><p class="sub">${plural(state.phrases.length, 'frase guardada', 'frases guardadas')} para lembrar durante o dia</p></div><div class="hd-r"><button class="gild" data-act="phraseAdd">Nova frase</button></div></header>
-  <div class="quotes">${state.phrases.map((p) => `<article class="qcard"><div><q>${esc(p.text)}</q>${p.author ? `<cite>${esc(p.author)}</cite>` : ''}</div>
+  <div class="chips" style="margin-bottom:18px">${chips.map(([k, l]) => `<button class="chip ${f === k ? 'on' : ''}" data-act="pfilter" data-k="${k}">${l}</button>`).join('')}</div>
+  <div class="quotes">${list.map((p) => `<article class="qcard"><div><q>${esc(p.text)}</q>${p.author ? `<cite>${esc(p.author)}</cite>` : ''}</div>
     <div class="qacts"><button class="favbtn ${p.fav ? 'on' : ''}" data-act="phraseFav" data-id="${p.id}" aria-pressed="${!!p.fav}">${Art.ic('estrela')}<span>${p.fav ? 'Favorita' : 'Favoritar'}</span></button>
-    <button class="link" data-act="phraseEdit" data-id="${p.id}">Editar</button></div></article>`).join('') || frame('agbox', empty('Nenhuma frase ainda.'))}</div>`;
+    <button class="link" data-act="phraseEdit" data-id="${p.id}">Editar</button></div></article>`).join('') || frame('agbox', empty('Nenhuma frase aqui ainda.'))}</div>`;
 }
 
 /* ===== Ajustes ===== */
@@ -409,6 +475,11 @@ function vAjustes() {
     <div class="set-row"><div>${esc(APP_NAME)} ${APP_VERSION}<small>O app avisa quando houver uma versão nova.</small></div><button class="ghost" data-act="checkUpdate">Buscar atualização</button></div>`)}
   ${frame('setbox', `<div class="fh"><h2>Aplicativo</h2></div>
     <div class="set-row"><div>Instalar neste aparelho<small>Celular: menu do navegador, “Instalar app” ou “Adicionar à Tela de Início”. Computador: ícone de instalar na barra de endereço.</small></div>${installEvt ? '<button class="gild" data-act="install">Instalar</button>' : ''}</div>`)}
+  ${frame('setbox', `<div class="fh"><h2>Calendário (Google, Outlook)</h2></div>
+    <p class="muted" style="margin-bottom:12px">Importe seus compromissos de um arquivo .ics. Eles entram na Agenda e geram avisos como os demais. Importar de novo atualiza sem duplicar.</p>
+    <div class="actions"><button class="ghost" data-act="icsImport">Importar arquivo .ics</button></div>
+    <input type="file" id="ics" accept=".ics,text/calendar" class="hide">
+    <p class="side-note">Google Agenda: Configurações → Importar e exportar → Exportar. Outlook: Calendário → Compartilhar/Publicar → baixe o .ics. Sincronização automática ainda não existe.</p>`)}
   ${frame('setbox', `<div class="fh"><h2>Seus dados</h2></div>
     <p class="muted" style="margin-bottom:12px">Para levar do celular ao computador, ou fazer um backup, exporte e importe o arquivo.</p>
     <div class="actions"><button class="ghost" data-act="export">Exportar backup</button><button class="ghost" data-act="import">Importar backup</button></div>
@@ -444,6 +515,7 @@ function render() {
   renderNav();
   document.title = view === 'hoje' ? APP_NAME : `${VIEWS.find((x) => x[0] === view)[1]} · ${APP_NAME}`;
   window.scrollTo(0, y);
+  hydratePhotos(v);
 }
 function go(id) {
   if (!RENDER[id]) id = 'hoje';
@@ -525,13 +597,14 @@ function dictate(input, btn) {
 }
 
 /* ---------- captura rápida ---------- */
-function openCapture(kind = 'pensamento', preset = '', autoDictate = false) {
+function openCapture(kind = 'pensamento', preset = '', autoDictate = false, autoPhoto = false) {
   const KINDS = [['pensamento', 'Pensamento'], ['tarefa', 'Tarefa'], ['compromisso', 'Compromisso'], ['meta', 'Meta diária'], ['frase', 'Frase']];
   let cat = '';
   openSheet('Novo registro', `
     <div class="chips" style="margin-bottom:14px" data-kinds>${KINDS.map(([k, l]) => `<button type="button" class="chip ${k === kind ? 'on' : ''}" data-kind="${k}">${l}</button>`).join('')}</div>
     <div class="field"><textarea class="in" name="text" autofocus placeholder="Escreva ou dite…" required>${esc(preset)}</textarea></div>
-    <div style="margin:-6px 0 12px"><button type="button" class="btn sm" data-dict>${ic('mic')} Ditar</button></div>
+    <div style="margin:-6px 0 12px"><button type="button" class="btn sm" data-dict>${ic('mic')} Ditar</button> <button type="button" class="btn sm" data-photo>${ic('foto')} Foto</button>${photoPick()}</div>
+    <div class="ph-grid" data-pgrid></div>
     <div data-x="pensamento"><div class="pv" data-pv></div>${catChips('', true)}</div>
     <div data-x="tarefa"><div class="field"><span>Frente</span><select class="in" name="area">${areaOpts()}</select></div><div class="field"><span>Prazo (opcional)</span><input class="in" type="date" name="due"></div></div>
     <div data-x="compromisso"><div class="row"><div class="field grow"><span>Data</span><input class="in" type="date" name="date" value="${dkey()}"></div><div class="field grow"><span>Hora</span><input class="in" type="time" name="time"></div></div></div>
@@ -539,6 +612,17 @@ function openCapture(kind = 'pensamento', preset = '', autoDictate = false) {
     <div class="actions"><button type="button" class="btn grow" data-act="closeSheet">Cancelar</button><button class="btn pri grow">Salvar</button></div>`,
   (f) => {
     const ta = $('textarea', f);
+    const pend = []; // { id, blob, url }
+    const drawPend = () => {
+      $('[data-pgrid]', f).innerHTML = pend.map((p, i) => `<figure><img src="${p.url}" alt="Foto ${i + 1}"><button type="button" class="ph-x" data-rmp="${i}" aria-label="Tirar foto">&times;</button></figure>`).join('');
+      ta.required = !pend.length || kind !== 'pensamento';
+    };
+    $('[data-photo]', f).addEventListener('click', () => $('[data-photo-in]', f).click());
+    $('[data-photo-in]', f).addEventListener('change', async (e) => {
+      for (const file of [...e.target.files]) { const blob = await shrinkPhoto(file); pend.push({ id: uid(), blob, url: URL.createObjectURL(blob) }); }
+      e.target.value = ''; if (kind !== 'pensamento') { kind = 'pensamento'; sync(); } drawPend();
+    });
+    $('[data-pgrid]', f).addEventListener('click', (e) => { const b = e.target.closest('[data-rmp]'); if (b) { URL.revokeObjectURL(pend[+b.dataset.rmp].url); pend.splice(+b.dataset.rmp, 1); drawPend(); } });
     const sync = () => {
       $$('[data-x]', f).forEach((x) => x.classList.toggle('hide', x.dataset.x !== kind));
       $$('[data-kind]', f).forEach((c) => c.classList.toggle('on', c.dataset.kind === kind));
@@ -553,9 +637,9 @@ function openCapture(kind = 'pensamento', preset = '', autoDictate = false) {
     f.addEventListener('submit', (e) => {
       e.preventDefault();
       const d = fd(f), text = (d.text || '').trim();
-      if (!text) return;
+      if (!text && !(kind === 'pensamento' && pend.length)) return;
       let fresh = false;
-      if (kind === 'pensamento') { const t = addThought(text, cat); toast(`Pensamento salvo: ${CATS[t.cat].label}`); fresh = true; }
+      if (kind === 'pensamento') { pend.forEach((p) => PH.put(p.id, p.blob).catch(() => toast('Não consegui guardar a foto.'))); const t = addThought(text, cat, pend.map((p) => p.id)); toast(`Pensamento salvo: ${CATS[t.cat].label}`); fresh = true; }
       else if (kind === 'tarefa') {
         const a = areaFromTags(tagsOf(text))?.id || d.area;
         state.tasks.unshift({ id: uid(), text, areaId: a, due: d.due || '', done: false, star: false, created: Date.now() });
@@ -568,6 +652,7 @@ function openCapture(kind = 'pensamento', preset = '', autoDictate = false) {
     });
     sync();
     if (autoDictate && SR) dictate(ta, $('[data-dict]', f));
+    if (autoPhoto) $('[data-photo-in]', f).click();
   });
 }
 
@@ -578,6 +663,8 @@ function thoughtSheet(id) {
   let cat = t.cat;
   openSheet('Pensamento', `
     <div class="field"><textarea class="in" name="text" style="min-height:120px">${esc(t.text)}</textarea></div>
+    <div class="ph-grid" data-tgrid></div>
+    <div style="margin:0 0 12px"><button type="button" class="btn sm" data-addph>${ic('foto')} Adicionar foto</button>${photoPick()}</div>
     ${catChips(cat)}
     <div class="field" style="margin-top:14px"><span>Frente (para virar tarefa)</span><select class="in" name="area">${areaOpts(areaFromTags(t.tags)?.id)}</select></div>
     <div class="actions">
@@ -589,6 +676,18 @@ function thoughtSheet(id) {
     <div class="actions" style="margin-top:14px"><button type="button" class="btn danger" data-do="del">Apagar</button><span class="grow"></span><button class="btn pri">Salvar</button></div>`,
   (f) => {
     bindCats(f, (c) => { cat = c; });
+    const drawT = () => { $('[data-tgrid]', f).innerHTML = (t.photos || []).map((id) => `<figure><img data-ph="${id}" data-open="${id}" alt="Foto"><button type="button" class="ph-x" data-rmt="${id}" aria-label="Apagar foto">&times;</button></figure>`).join(''); hydratePhotos(f); };
+    drawT();
+    $('[data-addph]', f).addEventListener('click', () => $('[data-photo-in]', f).click());
+    $('[data-photo-in]', f).addEventListener('change', async (e) => {
+      for (const file of [...e.target.files]) { const id = uid(), blob = await shrinkPhoto(file); await PH.put(id, blob); (t.photos ||= []).push(id); }
+      e.target.value = ''; save(); drawT();
+    });
+    $('[data-tgrid]', f).addEventListener('click', (e) => {
+      const x = e.target.closest('[data-rmt]'), o = e.target.closest('[data-open]');
+      if (x) { t.photos = t.photos.filter((i) => i !== x.dataset.rmt); if (!t.photos.length) delete t.photos; PH.del([x.dataset.rmt]); save(); drawT(); }
+      else if (o) lightbox(o.dataset.open);
+    });
     const upd = () => { t.text = $('[name=text]', f).value.trim() || t.text; t.cat = cat; t.tags = tagsOf(t.text); };
     f.addEventListener('submit', (e) => { e.preventDefault(); upd(); save(); closeSheet(); render(); });
     f.addEventListener('click', (e) => {
@@ -598,7 +697,7 @@ function thoughtSheet(id) {
       const w = b.dataset.do;
       if (w === 'pin') t.pinned = !t.pinned;
       else if (w === 'done') t.done = !t.done;
-      else if (w === 'del') { if (!confirm('Apagar este pensamento?')) return; state.thoughts = state.thoughts.filter((x) => x !== t); }
+      else if (w === 'del') { if (!confirm('Apagar este pensamento?')) return; PH.del(t.photos || []); state.thoughts = state.thoughts.filter((x) => x !== t); }
       else if (w === 'task') { state.tasks.unshift({ id: uid(), text: t.text, areaId: $('[name=area]', f).value, due: '', done: false, star: false, created: Date.now() }); t.done = true; toast('Virou tarefa'); }
       else if (w === 'phrase') { state.phrases.unshift({ id: uid(), text: t.text.replace(/\s#[\p{L}\d_-]+/gu, ''), author: '', fav: false }); t.done = true; toast('Virou frase'); }
       save(); closeSheet(); render();
@@ -762,6 +861,57 @@ function tick() {
 }
 
 /* ---------- ações ---------- */
+/* ---------- calendário: importa arquivo .ics (Google Agenda, Outlook, Apple) ---------- */
+function importIcs(txt) {
+  const lines = txt.replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
+  const evs = []; let cur = null;
+  for (const ln of lines) {
+    if (ln === 'BEGIN:VEVENT') cur = {}; else if (ln === 'END:VEVENT') { if (cur?.start) evs.push(cur); cur = null; }
+    else if (cur) {
+      const i = ln.indexOf(':'); if (i < 0) continue;
+      const [name, ...par] = ln.slice(0, i).split(';'), val = ln.slice(i + 1);
+      if (name === 'SUMMARY') cur.title = val.replace(/\\([,;nN\\])/g, (m, c) => (c === 'n' || c === 'N' ? ' ' : c));
+      else if (name === 'UID') cur.uid = val;
+      else if (name === 'STATUS') cur.cancelled = /CANCEL/i.test(val);
+      else if (name === 'RRULE') cur.rrule = Object.fromEntries(val.split(';').map((p) => p.split('=')));
+      else if (name === 'DTSTART') {
+        const m = val.match(/^(\d{4})(\d\d)(\d\d)(?:T(\d\d)(\d\d)(\d\d)?(Z)?)?$/); if (!m) continue;
+        let d = m[4] === undefined ? new Date(+m[1], m[2] - 1, +m[3]) : m[7] ? new Date(Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5])) : new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]);
+        cur.start = d; cur.allDay = m[4] === undefined;
+      }
+    }
+  }
+  const from = new Date(); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - 1);
+  const to = new Date(from); to.setDate(to.getDate() + 120);
+  const DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+  let n = 0;
+  const put = (e, day) => {
+    const date = dkey(day), time = e.allDay ? '' : `${pad(e.start.getHours())}:${pad(e.start.getMinutes())}`;
+    const id = `ics-${e.uid || e.title}-${date}`, old = state.events.find((x) => x.id === id);
+    if (old) { old.title = e.title; old.time = time; } else state.events.push({ id, title: e.title, date, time, done: false, ics: true });
+    n++;
+  };
+  for (const e of evs) {
+    if (e.cancelled || !e.title) continue;
+    const st = new Date(e.start.getFullYear(), e.start.getMonth(), e.start.getDate());
+    if (!e.rrule) { if (st >= from && st <= to) put(e, st); continue; }
+    const r = e.rrule, step = +r.INTERVAL || 1, until = r.UNTIL ? new Date(+r.UNTIL.slice(0, 4), +r.UNTIL.slice(4, 6) - 1, +r.UNTIL.slice(6, 8)) : null;
+    const by = r.BYDAY ? r.BYDAY.split(',').map((x) => x.slice(-2)) : null;
+    let count = 0;
+    for (let d = new Date(st); d <= to; d.setDate(d.getDate() + 1)) {
+      if (until && d > until) break;
+      const days = Math.round((d - st) / 864e5); let ok = false;
+      if (r.FREQ === 'DAILY') ok = days % step === 0;
+      else if (r.FREQ === 'WEEKLY') ok = Math.floor(days / 7) % step === 0 && (by ? by.includes(DAYS[d.getDay()]) : d.getDay() === st.getDay());
+      else if (r.FREQ === 'MONTHLY') ok = d.getDate() === st.getDate() && ((d.getFullYear() - st.getFullYear()) * 12 + d.getMonth() - st.getMonth()) % step === 0;
+      else if (r.FREQ === 'YEARLY') ok = d.getDate() === st.getDate() && d.getMonth() === st.getMonth() && (d.getFullYear() - st.getFullYear()) % step === 0;
+      if (!ok) continue;
+      if (r.COUNT && ++count > +r.COUNT) break;
+      if (d >= from) put(e, new Date(d));
+    }
+  }
+  return n;
+}
 const ACT = {
   go: (el) => go(el.dataset.view),
   capture: () => openCapture(),
@@ -780,6 +930,7 @@ const ACT = {
   book: (el) => { ui.book = el.dataset.id; if (view !== 'frentes') go('frentes'); else render(); },
   mode: (el) => { state.settings.mode = el.dataset.m; save(); render(); },
   phraseAdd: () => phraseSheet(),
+  pfilter: (el) => { ui.pf = el.dataset.k; render(); },
   phraseEdit: (el) => phraseSheet(el.dataset.id),
   areaAdd: () => areaSheet(),
   areaEdit: (el) => areaSheet(el.dataset.id),
@@ -809,13 +960,20 @@ const ACT = {
     (await notify('Lembre-se', p ? p.text : 'Teste de notificação', 'teste')) || toast('Falhou ao notificar.');
   },
   install: async () => { if (installEvt) { installEvt.prompt(); await installEvt.userChoice; installEvt = null; render(); } },
-  export: () => {
-    const blob = new Blob([JSON.stringify(state, null, 1)], { type: 'application/json' });
+  photo: () => openCapture('pensamento', '', false, true),
+  icsImport: () => $('#ics').click(),
+  export: async () => {
+    const photos = {};
+    for (const t of state.thoughts) for (const id of t.photos || []) {
+      const b = await PH.get(id).catch(() => null);
+      if (b) photos[id] = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
+    }
+    const blob = new Blob([JSON.stringify({ ...state, photos }, null, 1)], { type: 'application/json' });
     const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `penseira-${dkey()}.json` });
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   },
   import: () => $('#file').click(),
-  wipe: () => { if (confirm('Apagar TODOS os dados deste aparelho? Exporte um backup antes.') && confirm('Tem certeza? Não dá para desfazer.')) { state = defaults(); pickPhrase(); save(); render(); toast('Dados apagados'); } },
+  wipe: () => { if (confirm('Apagar TODOS os dados deste aparelho? Exporte um backup antes.') && confirm('Tem certeza? Não dá para desfazer.')) { state = defaults(); PH.clear(); pickPhrase(); save(); render(); toast('Dados apagados'); } },
 };
 
 document.addEventListener('click', (e) => {
@@ -859,6 +1017,11 @@ document.addEventListener('change', (e) => {
     state.settings[k] = (k === 'interval' || k === 'evLead') ? +e.target.value : e.target.value; if (k === 'dailyAt') state.settings.lastDaily = ''; save();
     return;
   }
+  if (e.target.id === 'ics' && e.target.files[0]) {
+    const f0 = e.target.files[0]; e.target.value = '';
+    f0.text().then((txt) => { const n = importIcs(txt); save(); render(); toast(n ? `${n} compromisso${n > 1 ? 's' : ''} importado${n > 1 ? 's' : ''} do calendário.` : 'Não encontrei compromissos neste arquivo.'); });
+    return;
+  }
   if (e.target.id === 'file' && e.target.files[0]) {
     const r = new FileReader();
     r.onload = () => {
@@ -866,7 +1029,9 @@ document.addEventListener('change', (e) => {
         const d = JSON.parse(r.result);
         if (d.v !== 1 || !Array.isArray(d.thoughts) || !Array.isArray(d.tasks)) throw new Error();
         if (!confirm('Substituir todos os dados deste aparelho pelos do arquivo?')) return;
+        const photos = d.photos || {}; delete d.photos;
         state = { ...defaults(), ...d, settings: { ...defaults().settings, ...d.settings } };
+        PH.clear().then(() => Promise.all(Object.entries(photos).map(async ([id, u]) => PH.put(id, await (await fetch(u)).blob())))).then(() => render()).catch(() => {});
         save(); render(); toast('Backup importado');
       } catch (err) { toast('Arquivo inválido.'); }
     };
@@ -886,6 +1051,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { ti
 
 /* ---------- init ---------- */
 renderTop();
+mergeLibrary();
 if (!state.current || !currentPhrase()) pickPhrase();
 const h0 = location.hash.slice(1);
 view = RENDER[h0] ? h0 : 'hoje';
