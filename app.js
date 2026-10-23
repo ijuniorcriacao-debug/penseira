@@ -1,7 +1,7 @@
 'use strict';
 /* Penseira — dados ficam no aparelho (localStorage). Sem servidor, sem conta. */
 
-const APP_VERSION = '1.3.2'; // mantenha igual ao VERSION do sw.js a cada publicação
+const APP_VERSION = '1.4.0'; // mantenha igual ao VERSION do sw.js a cada publicação
 const APP_NAME = 'Penseira'; // nome do produto: troque aqui (e em index.html / manifest.webmanifest) para renomear
 const KEY = 'penseira:v1';
 const $ = (s, r = document) => r.querySelector(s);
@@ -233,44 +233,38 @@ const frame = (cls, html) => `<section class="frame ${cls}">${html}</section>`;
 const greeting = () => { const h = new Date().getHours(); return h < 5 ? 'Boa madrugada' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; };
 
 /* ----- a Penseira: a bacia e os pensamentos flutuando ----- */
-function layoutOrbs(items, sizes, W, H) {
-  const pts = items.map((t, i) => { const h = hash(t.id); return { x: W * (0.1 + 0.8 * ((h % 997) / 997)), y: H * (0.1 + 0.62 * (((h >> 8) % 991) / 991)), rx: sizes[i] / 2 + 66, ry: sizes[i] / 2 + 38, s: sizes[i] }; });
-  for (let k = 0; k < 120; k++) {
-    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
-      const a = pts[i], b = pts[j];
-      let dx = b.x - a.x, dy = b.y - a.y;
-      if (!dx && !dy) { dx = 1; dy = 0.5; }
-      const sx = a.rx + b.rx, sy = a.ry + b.ry, d = Math.hypot(dx / sx, dy / sy);
-      if (d < 1) { const m = (1 - d) * 0.5; a.x -= (dx / sx) * sx * m; a.y -= (dy / sy) * sy * m; b.x += (dx / sx) * sx * m; b.y += (dy / sy) * sy * m; }
-    }
-    for (const p of pts) { p.x = Math.max(p.s / 2 + 10, Math.min(W - p.s / 2 - 10, p.x)); p.y = Math.max(p.s / 2 + 6, Math.min(H - p.s / 2 - 34, p.y)); }
+function layoutBubbles(n, narrow, SH) {
+  const out = [];
+  if (narrow) {
+    for (let i = 0; i < n; i++) out.push({ x: i % 2 ? 51 : 2, y: Math.floor(i / 2) * 104 + (i % 2 ? 34 : 0) });
+    return out;
   }
-  return pts.map((p) => ({ x: (p.x / W) * 100, y: (p.y / H) * 100 }));
+  const nc = n > 6 ? 1 : 0, rest = n - nc, nl = Math.ceil(rest / 2), nr = rest - nl;
+  const step = (cnt) => Math.min(132, (SH - 112) / Math.max(cnt, 1));
+  for (let i = 0; i < nl; i++) out.push({ x: 2 + (i % 2) * 4, y: 6 + i * step(nl) });
+  for (let i = 0; i < nr; i++) out.push({ x: 71 - (i % 2) * 3, y: 28 + i * step(nr) });
+  if (nc) out.push({ x: 36, y: 0 });
+  return out;
 }
-function orbHtml(t, p, s) {
+function bubbleHtml(t, p) {
   const c = HUE[t.cat] ? t.cat : 'reflexao';
-  return `<button class="orb ${t.pinned ? 'pin' : ''} ${Date.now() - t.created < 5000 ? 'fresh' : ''}" data-act="thought" data-id="${t.id}" aria-label="Pensamento: ${esc(trunc(clean(t.text), 90))}"
-    style="--x:${p.x.toFixed(2)};--y:${p.y.toFixed(2)};--s:${s}px;--h:${HUE[c]};--dur:${8 + (hash(t.id) % 5)}s;--dl:-${hash(t.id) % 9}s">
-    ${t.photos?.length ? `<span class="o-ph" data-phbg="${t.photos[0]}"></span>` : ''}<span class="o-glass"></span><span class="o-cap">${esc(trunc(clean(t.text), 40))}</span></button>`;
+  return `<button class="bub ${t.pinned ? 'pin' : ''} ${Date.now() - t.created < 5000 ? 'fresh' : ''}" data-act="thought" data-id="${t.id}" style="left:${p.x}%;top:${Math.round(p.y)}px;--h:${HUE[c]};--dur:${7 + (hash(t.id) % 5)}s;--dl:-${hash(t.id) % 8}s">
+    ${t.photos?.length ? `<img class="bph" data-ph="${t.photos[0]}" alt="">` : '<i class="dot"></i>'}<span>${esc(trunc(clean(t.text), 78))}</span></button>`;
 }
 function stage(list, mini) {
   const narrow = isNarrow();
-  const SH = mini ? (narrow ? 430 : 480) : narrow ? 540 : 640;
-  const W = Math.max(280, Math.min(document.documentElement.clientWidth - (innerWidth >= 900 ? 230 : 36), 1180) - (mini ? 56 : 8));
-  const max = mini ? (narrow ? 4 : 6) : narrow ? 7 : 12;
+  const max = mini ? (narrow ? 4 : 6) : narrow ? 6 : 7;
   const vis = [...list.filter((t) => t.pinned), ...list.filter((t) => !t.pinned)].slice(0, max);
-  const k = mini || narrow ? 0.92 : 1;
-  const sizes = vis.map((t, i) => (t.pinned ? 78 : i < 4 ? 70 : 60) * k);
-  const bw = Math.min(W * 0.94, 780), bh = bw * (410 / 900);
-  const OH = Math.round(SH - bh * 0.556 - 34);
-  const pos = layoutOrbs(vis, sizes, W, OH);
-  return `<div class="stage ${mini ? 'mini' : ''}" style="--sh:${SH}px;--oh:${OH}px;--bw:${Math.round(bw)}px">
-    <div class="rays" aria-hidden="true"></div>
-    <div class="orbs">${vis.map((t, i) => orbHtml(t, pos[i], sizes[i])).join('')}</div>
-    <div class="basin basin-target"><div class="halo" aria-hidden="true"></div>${Art.basin()}</div>
+  const SH = narrow ? (mini ? 440 : 540) : mini ? 420 : 540;
+  const pos = layoutBubbles(vis.length, narrow, SH);
+  return `<div class="stage" style="--sh:${SH}px">
+    <div class="halo" aria-hidden="true"></div>
+    <div class="bubbles">${vis.map((t, i) => bubbleHtml(t, pos[i])).join('')}</div>
+    <div class="basin basin-target">${Art.basin()}</div>
     ${vis.length ? '' : '<p class="stage-empty">Nenhum pensamento ainda.<br>Escreva ou dite o primeiro.</p>'}
   </div>`;
 }
+
 const composer = () => `<form class="composer" data-form="quick">
   <span class="thread-ic" aria-hidden="true">${Art.ic('penseira')}</span>
   <input name="text" placeholder="Escreva um pensamento…" autocomplete="off" aria-label="Novo pensamento">
@@ -337,21 +331,20 @@ function vHoje() {
   const next = agendaItems().filter((i) => !i.done && diffDays(i.date) >= 0).slice(0, 3);
   const late = state.tasks.filter((t) => !t.done && t.due && diffDays(t.due) < 0).length;
   const lede = late ? `${plural(late, 'tarefa atrasada espera', 'tarefas atrasadas esperam')} por você.` : evsToday.length ? `${plural(evsToday.length, 'compromisso', 'compromissos')} hoje.` : 'Um dia livre para pensar.';
+  const wd = new Date().toLocaleDateString('pt-BR', { weekday: 'long' }), dm = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+  const fronts = state.areas.map((a, i) => {
+    const all = state.tasks.filter((t) => t.areaId === a.id), open = all.filter((t) => !t.done).length, pct = all.length ? Math.round(((all.length - open) / all.length) * 100) : 0;
+    return `<button class="nb" data-act="book" data-id="${a.id}" style="--tone:${TONES[i % 6]}"><h3>${esc(a.name)}</h3><span class="meta">${plural(open, 'aberta', 'abertas')}</span><span class="bar"><u style="width:${pct}%"></u></span></button>`;
+  }).join('');
   return `
-  <header class="hero">
-    <div class="greet"><p class="lbl">${fmtDay(k)}</p><h1 class="t-main">${greeting()}</h1>
-      <p class="lede">${lede}</p></div>
+  <header class="hd2"><h1 class="t-main">${wd.charAt(0).toUpperCase() + wd.slice(1)}</h1><p class="date">${dm} · ${lede}</p></header>
     ${frame('whisper', `<span class="lbl">Para lembrar agora</span>
       ${p ? `<blockquote>${esc(p.text)}</blockquote>${p.author ? `<cite>${esc(p.author)}</cite>` : ''}
       <div class="acts"><button class="ghost" data-act="phraseNext">Outra frase</button>
       <button class="favbtn ${p.fav ? 'on' : ''}" data-act="phraseFav" data-id="${p.id}" aria-pressed="${!!p.fav}">${Art.ic('estrela')}<span>${p.fav ? 'Favorita' : 'Favoritar'}</span></button></div>`
       : `<blockquote>Guarde aqui as frases que você precisa lembrar.</blockquote><div class="acts"><button class="ghost" data-act="phraseAdd">Escrever uma frase</button></div>`}`)}
-  </header>
 
-  ${frame('pensieve', `<div class="fh"><h2>A Penseira</h2><span class="faint">${plural(live.length, 'pensamento', 'pensamentos')}</span><span class="sp"></span><button class="ghost" data-act="go" data-view="penseira">Abrir</button></div>
-    ${stage(live, true)}${composer()}`)}
-
-  <div class="trio">
+  <div class="duo">
     ${frame('rituals', `<div class="fh"><h2>Metas de hoje</h2></div>
       <div class="dial-wrap">${Art.dial(goals, goalDone)}</div>
       ${goals.length ? goals.map((g) => `<div class="tl ${goalDone(g) ? 'done' : ''}"><button class="ck" data-act="goalToggle" data-id="${g.id}" aria-label="${goalDone(g) ? 'Desfazer' : 'Cumprir'}: ${esc(g.text)}">${Art.ic('check')}</button>
@@ -360,9 +353,13 @@ function vHoje() {
     ${frame('arcbox', `<div class="fh"><h2>Seu dia</h2></div>${dayArc()}
       ${next.length ? next.map(agendaRow).join('') : empty('Nada marcado para hoje.')}
       <div class="foot"><button class="link" data-act="go" data-view="agenda">Abrir a agenda</button></div>`)}
-    ${frame('nbbox', `<div class="fh"><h2>Frentes</h2></div>${notebookList()}
-      ${stars.length ? `<h3 class="mini-h">Prioridades</h3>${stars.map((t) => taskLine(t, true)).join('')}` : ''}`)}
-  </div>`;
+  </div>
+  ${frame('pensieve', `<div class="fh"><h2>A Penseira</h2><span class="faint">${plural(live.length, 'pensamento', 'pensamentos')}</span><span class="sp"></span><button class="ghost" data-act="go" data-view="penseira">Abrir</button></div>
+    ${stage(live, true)}${composer()}`)}
+
+
+  ${stars.length || state.areas.length ? `<div class="fronts-strip">${fronts}<button class="nb new" data-act="go" data-view="frentes"><span>Todas as frentes</span></button></div>` : ''}
+  ${stars.length ? frame('prio', `<div class="fh"><h2>Prioridades</h2></div>${stars.map((t) => taskLine(t, true)).join('')}`) : ''}`;
 }
 
 /* ===== Penseira ===== */
