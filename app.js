@@ -64,7 +64,7 @@ function defaults() {
     ],
     thoughts: [{ id: uid(), text: 'Toque no + e jogue aqui qualquer pensamento. Eu organizo por categoria. #exemplo', cat: 'ideia', tags: ['exemplo'], pinned: true, done: false, created: Date.now() }],
     current: null,
-    settings: { remind: false, interval: 120, from: '08:00', to: '21:00', theme: 'auto', mode: 'nuvem' },
+    settings: { remind: false, interval: 120, from: '08:00', to: '21:00', theme: 'dark', mode: 'nuvem' },
   };
 }
 function load() {
@@ -184,7 +184,21 @@ function bubble(t, small) {
   const c = CATS[t.cat] || CATS.reflexao;
   const h = hash(t.id);
   return `<button class="bubble ${t.pinned ? 'pin' : ''} ${small ? 'sm' : ''}" data-act="thought" data-id="${t.id}" style="--h:${c.hue};--dur:${6 + (h % 5)}s;--delay:-${h % 7}s;--rot:${((h % 5) - 2) * 0.5}deg">
-    <span class="b-emoji">${t.pinned ? '📍' : c.emoji}</span><span class="b-text">${fmtText(t.text)}</span></button>`;
+    <span class="b-dot"></span><span class="b-text">${fmtText(t.text)}</span></button>`;
+}
+function basinHtml(big) {
+  return `<div class="basin ${big ? 'big' : ''}" aria-hidden="true">
+    <div class="glow"></div>
+    <svg class="wisps" viewBox="0 0 300 240" preserveAspectRatio="xMidYMax meet">
+      <defs><linearGradient id="w1" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#eaf2ff" stop-opacity="0"/></linearGradient>
+      <linearGradient id="w2" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#6fe0f2" stop-opacity="0"/></linearGradient>
+      <linearGradient id="w3" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset="1" stop-color="#9b8cff" stop-opacity="0"/></linearGradient></defs>
+      <path d="M150 235 C 110 180 190 150 150 100 C 115 55 120 40 150 5" stroke="url(#w1)" stroke-width="2.6"/>
+      <path d="M170 238 C 235 190 140 140 195 95 C 240 55 225 35 205 10" stroke="url(#w2)" stroke-width="2"/>
+      <path d="M130 238 C 80 200 115 150 85 105 C 60 70 75 45 95 25" stroke="url(#w3)" stroke-width="1.7"/>
+    </svg>
+    <div class="bowl"></div><div class="liquid"></div><div class="spark"></div>
+  </div>`;
 }
 const liveThoughts = () => state.thoughts.filter((t) => !t.done);
 
@@ -202,7 +216,7 @@ function vHoje() {
   <div class="page-h"><div><h1>${greeting()} 👋</h1><p>${parseKey(k).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p></div></div>
   <div class="grid two">
     <section class="card phrase span2">
-      <div class="lbl">Lembre-se agora</div>
+      <div class="lbl">✦ Lembre-se agora</div>
       ${p ? `<blockquote>${esc(p.text)}</blockquote>${p.author ? `<cite>— ${esc(p.author)}</cite>` : ''}
       <div class="acts"><button class="ib" data-act="phraseNext" aria-label="Outra frase">${ic('shuffle')}</button>
       <button class="ib ${p.fav ? 'on' : ''}" data-act="phraseFav" data-id="${p.id}" aria-label="Favoritar">${ic('heart')}</button></div>`
@@ -210,7 +224,7 @@ function vHoje() {
     </section>
     <section class="card">
       <div class="card-h"><h2>Metas de hoje</h2><span class="muted">${doneN}/${goals.length}</span></div>
-      <div class="row" style="margin-bottom:8px"><div class="ring"><svg viewBox="0 0 74 74"><circle cx="37" cy="37" r="${R}" fill="none" stroke="var(--bg2)" stroke-width="8"/><circle cx="37" cy="37" r="${R}" fill="none" stroke="var(--ok)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct)}"/></svg><b>${Math.round(pct * 100)}%</b></div>
+      <div class="row" style="margin-bottom:8px"><div class="ring"><svg viewBox="0 0 74 74"><circle cx="37" cy="37" r="${R}" fill="none" stroke="#1e2a48" stroke-width="8"/><circle cx="37" cy="37" r="${R}" fill="none" stroke="var(--cyan)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct)}"/></svg><b>${Math.round(pct * 100)}%</b></div>
       <div class="muted grow">${goals.length ? (pct === 1 ? 'Tudo feito hoje. 🎉' : 'Marque conforme for cumprindo.') : 'Crie sua primeira meta diária.'}</div></div>
       ${goals.map((g) => `<div class="item ${goalDone(g) ? 'done' : ''}"><button class="ck ${goalDone(g) ? 'on' : ''}" data-act="goalToggle" data-id="${g.id}" aria-label="Concluir">${ic('check')}</button>
         <button class="t" data-act="goalEdit" data-id="${g.id}">${esc(g.text)}</button>${streak(g) > 1 ? `<span class="streak">🔥 ${streak(g)}</span>` : ''}</div>`).join('')}
@@ -231,8 +245,9 @@ function vHoje() {
         return `<button class="mini" style="--h:${a.hue}" data-act="go" data-view="frentes">${a.emoji} <b>${esc(a.name)}</b><span>${open} aberta${open === 1 ? '' : 's'}</span></button>`;
       }).join('') || '<div class="empty">Crie suas frentes de trabalho.</div>'}</div>
     </section>
-    <section class="card span2">
+    <section class="card pencard span2">
       <div class="card-h"><h2>Penseira</h2><button class="btn sm" data-act="go" data-view="penseira">Abrir</button></div>
+      ${basinHtml(false)}
       ${float.length ? `<div class="cloud">${float.map((t) => bubble(t, true)).join('')}</div>` : '<div class="empty">Sua penseira está vazia. Toque no + para soltar um pensamento.</div>'}
     </section>
   </div>`;
@@ -262,6 +277,7 @@ function vPenseira() {
     <div class="row">
       ${nFazer ? `<button class="btn sm" data-act="organize">✅ Organizar (${nFazer})</button>` : ''}
       <button class="btn sm" data-act="mode">${mode === 'nuvem' ? 'Ver em grupos' : 'Ver nuvem'}</button></div></div>
+  ${basinHtml(true)}
   <form class="capture" data-form="quick"><input name="text" placeholder="O que está passando pela sua cabeça?" autocomplete="off" aria-label="Novo pensamento">
     ${SR ? `<button type="button" class="ib" data-act="dictate" aria-label="Ditar">${ic('mic')}</button>` : ''}<button class="btn pri sm" aria-label="Adicionar">${ic('plus')}</button></form>
   <div class="row wrap" style="margin-bottom:14px"><input class="in grow" style="max-width:300px" data-input="search" placeholder="Buscar…" value="${esc(ui.q)}"></div>
@@ -329,7 +345,7 @@ function vAjustes() {
     <p class="muted" style="font-size:13px">Sem servidor, o aviso só chega se o app estiver aberto (ou rodando em segundo plano). No iPhone, instale na Tela de Início primeiro.</p>
   </section>
   <section class="card"><div class="card-h"><h2>Aparência e app</h2></div>
-    <div class="set-row"><span>Tema</span><select class="in" style="width:auto" data-set="theme">${[['auto', 'Automático'], ['dark', 'Escuro'], ['light', 'Claro']].map(([v, l]) => `<option value="${v}" ${s.theme === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="set-row"><span>Tema</span><select class="in" style="width:auto" data-set="theme">${[['dark', 'Noite'], ['light', 'Luar (claro)']].map(([v, l]) => `<option value="${v}" ${(s.theme === 'light' ? 'light' : 'dark') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     <div class="set-row"><div>Instalar no aparelho<small>Celular: menu → “Instalar app” / “Adicionar à Tela de Início”. PC: ícone de instalar na barra de endereço.</small></div>${installEvt ? '<button class="btn pri sm" data-act="install">Instalar</button>' : ''}</div>
   </section>
   <section class="card span2"><div class="card-h"><h2>Seus dados</h2></div>
@@ -741,9 +757,9 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { ti
 
 function applyTheme() {
   const t = state.settings.theme;
-  if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme = t;
-  const dark = t === 'dark' || (t === 'auto' && !matchMedia('(prefers-color-scheme: light)').matches);
-  $('meta[name=theme-color]').content = dark ? '#0f111a' : '#f4f3fb';
+  const light = t === 'light';
+  if (light) document.documentElement.dataset.theme = 'light'; else document.documentElement.removeAttribute('data-theme');
+  $('meta[name=theme-color]').content = light ? '#eef0fa' : '#070b14';
 }
 
 /* ---------- init ---------- */
