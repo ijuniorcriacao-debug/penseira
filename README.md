@@ -19,5 +19,5 @@ pelo navegador ("Instalar app" / "Adicionar à Tela de Início").
 Sem dependências nem build: `index.html`, `styles.css`, `app.js`, `sw.js`.
 
 ## Visual
-Um gabinete mágico sob um céu estrelado: a lua real do dia, a bacia da Penseira com esferas de memória flutuando, círculo de runas para as metas, grimórios para as frentes e pergaminhos para as frases.
-Tudo desenhado em SVG/CSS (`art.js`, `magic.js`, `penseira.css`). Fontes próprias em `fonts/` (Cinzel, Cinzel Decorative e Cormorant Garamond, licença OFL), para funcionar offline.
+Um observatório à noite: tinta azul-escura, prata de lua e um único tom de latão. A lua é a fase real do dia; a bacia da Penseira guarda cada pensamento como uma pérola de luz; os rituais viram um mostrador; as frentes, cadernos.
+Tudo desenhado em SVG/CSS (`art.js`, `magic.js`, `penseira.css`). Fontes próprias em `fonts/` (Cormorant Garamond e Inter, licença OFL), para funcionar offline.

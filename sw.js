@@ -1,7 +1,6 @@
-const CACHE = 'penseira-v5';
+const CACHE = 'penseira-v6';
 const ASSETS = ['./', './index.html', './penseira.css', './app.js', './art.js', './magic.js', './manifest.webmanifest',
-  './fonts/cinzel-latin-wght-normal.woff2', './fonts/cinzel-decorative-latin-700-normal.woff2',
-  './fonts/cormorant-garamond-latin-wght-normal.woff2', './fonts/cormorant-garamond-latin-wght-italic.woff2',
+  './fonts/inter-latin-wght-normal.woff2', './fonts/cormorant-garamond-latin-wght-normal.woff2', './fonts/cormorant-garamond-latin-wght-italic.woff2',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
 
 self.addEventListener('install', (e) => {
