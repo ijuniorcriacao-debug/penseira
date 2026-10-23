@@ -1,6 +1,7 @@
 'use strict';
 /* Penseira — dados ficam no aparelho (localStorage). Sem servidor, sem conta. */
 
+const APP_VERSION = '1.1.0'; // mantenha igual ao VERSION do sw.js a cada publicação
 const APP_NAME = 'Penseira'; // nome do produto: troque aqui (e em index.html / manifest.webmanifest) para renomear
 const KEY = 'penseira:v1';
 const $ = (s, r = document) => r.querySelector(s);
@@ -53,7 +54,7 @@ function defaults() {
       { id: uid(), text: 'Preciso enviar a proposta ainda hoje #trabalho', cat: 'fazer', tags: ['trabalho'], pinned: false, done: false, created: Date.now() - 8 * 3600e3 },
     ],
     current: null,
-    settings: { remind: false, interval: 120, from: '08:00', to: '21:00', theme: 'dark', mode: 'penseira' },
+    settings: { remind: false, interval: 120, from: '08:00', to: '21:00', theme: 'dark', mode: 'penseira', evLead: 10, daily: false, dailyAt: '08:00', lastDaily: '' },
   };
 }
 function load() {
@@ -387,20 +388,25 @@ function vFrases() {
 
 /* ===== Ajustes ===== */
 let installEvt = null;
+const IOS_BROWSER = /iphone|ipad|ipod/i.test(navigator.userAgent) && !matchMedia('(display-mode: standalone)').matches && !navigator.standalone;
 function vAjustes() {
   const s = state.settings;
   const perm = 'Notification' in window ? Notification.permission : 'unsupported';
-  const hint = perm === 'denied' ? 'Bloqueado no navegador. Libere nas permissões do site.' : perm === 'unsupported' ? 'Este navegador não suporta notificações.' : 'Chega com o app aberto ou em segundo plano.';
+  const hint = perm === 'denied' ? 'Bloqueado no navegador. Libere nas permissões do site.' : perm === 'unsupported' ? (IOS_BROWSER ? 'Instale o app na Tela de Início para ativar.' : 'Este navegador não suporta notificações.') : perm === 'granted' ? 'Permitido neste aparelho.' : 'Toque para permitir.';
   return `
   <header class="hd"><div><h1 class="t-main">Ajustes</h1><p class="sub">Tudo fica guardado neste aparelho</p></div></header>
   <div class="narrow stack">
-  ${frame('setbox', `<div class="fh"><h2>Lembretes de frases</h2></div>
-    <div class="set-row"><div>Receber frases como notificação<small>${hint}</small></div>
-      <button class="sw-t ${s.remind ? 'on' : ''}" data-act="remindToggle" role="switch" aria-checked="${!!s.remind}" aria-label="Notificar frases"></button></div>
-    <div class="set-row"><label for="iv">Intervalo</label><select class="in" id="iv" data-set="interval">${[30, 60, 90, 120, 180, 240].map((m) => `<option value="${m}" ${s.interval === m ? 'selected' : ''}>${m < 60 ? m + ' min' : m % 60 ? (m / 60).toString().replace('.', ',') + ' h' : m / 60 + ' h'}</option>`).join('')}</select></div>
-    <div class="set-row"><span>Horário</span><span class="row"><input class="in" type="time" value="${s.from}" data-set="from" aria-label="Das"><span class="faint">até</span><input class="in" type="time" value="${s.to}" data-set="to" aria-label="Até"></span></div>
-    <div class="actions"><button class="ghost" data-act="testNotif">Testar notificação</button></div>
-    <p class="side-note">Sem servidor, o aviso só chega se o app estiver aberto ou rodando em segundo plano. No iPhone, instale na Tela de Início primeiro.</p>`)}
+  ${frame('setbox', `<div class="fh"><h2>Notificações</h2></div>
+    <div class="set-row"><div>Ativar notificações neste aparelho<small>${hint}</small></div>
+      <button class="sw-t ${s.remind ? 'on' : ''}" data-act="remindToggle" role="switch" aria-checked="${!!s.remind}" aria-label="Ativar notificações"></button></div>
+    <div class="set-row"><label for="lead">Avisar compromissos</label><select class="in" id="lead" data-set="evLead">${[[0, 'Na hora'], [5, '5 min antes'], [10, '10 min antes'], [15, '15 min antes'], [30, '30 min antes'], [60, '1 h antes']].map(([m, l]) => `<option value="${m}" ${(s.evLead ?? 10) === m ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="set-row"><div>Frases ao longo do dia<small>Uma frase sua a cada intervalo, dentro do horário abaixo.</small></div><select class="in" id="iv" data-set="interval" aria-label="Intervalo das frases">${[30, 60, 90, 120, 180, 240].map((m) => `<option value="${m}" ${s.interval === m ? 'selected' : ''}>${m < 60 ? m + ' min' : m % 60 ? (m / 60).toString().replace('.', ',') + ' h' : m / 60 + ' h'}</option>`).join('')}</select></div>
+    <div class="set-row"><span>Horário das frases</span><span class="row"><input class="in" type="time" value="${s.from}" data-set="from" aria-label="Das"><span class="faint">até</span><input class="in" type="time" value="${s.to}" data-set="to" aria-label="Até"></span></div>
+    <div class="set-row"><div>Resumo do dia<small>Um aviso por dia com o que está marcado.</small></div><span class="row"><input class="in" type="time" value="${s.dailyAt || '08:00'}" data-set="dailyAt" aria-label="Horário do resumo"><button class="sw-t ${s.daily ? 'on' : ''}" data-act="dailyToggle" role="switch" aria-checked="${!!s.daily}" aria-label="Resumo do dia"></button></span></div>
+    <div class="actions"><button class="ghost" data-act="testNotif">Enviar notificação de teste</button></div>
+    <p class="side-note">${IOS_BROWSER ? 'No iPhone, as notificações só funcionam depois de instalar o app na Tela de Início (Compartilhar → Adicionar à Tela de Início).' : 'Com o app aberto ou em segundo plano, os avisos chegam normalmente. Para receber com o app totalmente fechado, é preciso o envio por servidor (em preparação).'}</p>`)}
+  ${frame('setbox', `<div class="fh"><h2>Versão</h2></div>
+    <div class="set-row"><div>${esc(APP_NAME)} ${APP_VERSION}<small>O app avisa quando houver uma versão nova.</small></div><button class="ghost" data-act="checkUpdate">Buscar atualização</button></div>`)}
   ${frame('setbox', `<div class="fh"><h2>Aplicativo</h2></div>
     <div class="set-row"><div>Instalar neste aparelho<small>Celular: menu do navegador, “Instalar app” ou “Adicionar à Tela de Início”. Computador: ícone de instalar na barra de endereço.</small></div>${installEvt ? '<button class="gild" data-act="install">Instalar</button>' : ''}</div>`)}
   ${frame('setbox', `<div class="fh"><h2>Seus dados</h2></div>
@@ -729,16 +735,25 @@ function tick() {
     changed = true;
     if (p && s.remind && document.hidden && inWindow(now)) notify('Lembre-se', p.text + (p.author ? ` — ${p.author}` : ''), 'frase');
   }
+  const lead = (s.evLead ?? 10) * 60000;
   state.events.forEach((e) => {
     if (e.done || e.notified || e.date !== dkey() || !e.time) return;
     const [h, m] = e.time.split(':').map(Number);
     const at = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m).getTime();
-    if (ms >= at - 10 * 60000 && ms < at + 60 * 60000) {
+    if (ms >= at - lead && ms < at + 60 * 60000) {
       e.notified = true; save();
-      if (document.hidden) notify('Compromisso às ' + e.time, e.title, 'ev-' + e.id); else toast(`${e.time} · ${e.title}`);
+      const when = lead ? `Em ${s.evLead} min · ${e.time}` : `Agora · ${e.time}`;
+      if (s.remind && document.hidden) notify(e.title, when, 'ev-' + e.id); else toast(`${e.time} · ${e.title}`);
       changed = true;
     }
   });
+  const hhmm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  if (s.daily && s.lastDaily !== dkey() && hhmm >= (s.dailyAt || '08:00')) {
+    s.lastDaily = dkey(); save();
+    const nEv = state.events.filter((e) => e.date === dkey() && !e.done).length, nMeta = state.goals.filter((g) => !goalDone(g)).length, nTar = state.tasks.filter((t) => !t.done && t.due && diffDays(t.due) <= 0).length;
+    const txt = `${plural(nEv, 'compromisso', 'compromissos')}, ${plural(nMeta, 'meta', 'metas')} e ${plural(nTar, 'tarefa', 'tarefas')} para hoje.`;
+    if (s.remind && document.hidden) notify('Resumo do dia', txt, 'resumo'); else toast(`Resumo do dia: ${txt}`);
+  }
   if (changed && !sheet.classList.contains('open') && !document.activeElement?.matches?.('input,textarea')) render();
 }
 
@@ -778,6 +793,11 @@ const ACT = {
       s.remind = true; notify(APP_NAME, 'Lembretes ativados.', 'teste');
     } else s.remind = false;
     save(); render();
+  },
+  dailyToggle: async () => {
+    const s = state.settings;
+    if (!s.daily && !s.remind) { await ACT.remindToggle(); if (!state.settings.remind) return; }
+    s.daily = !s.daily; s.lastDaily = ''; save(); render();
   },
   testNotif: async () => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return toast('Ative os lembretes primeiro.');
@@ -832,7 +852,7 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', (e) => {
   const k = e.target.dataset?.set;
   if (k) {
-    state.settings[k] = k === 'interval' ? +e.target.value : e.target.value; save();
+    state.settings[k] = (k === 'interval' || k === 'evLead') ? +e.target.value : e.target.value; if (k === 'dailyAt') state.settings.lastDaily = ''; save();
     return;
   }
   if (e.target.id === 'file' && e.target.files[0]) {
@@ -871,14 +891,39 @@ render();
 if (h0 === 'nova') { history.replaceState(null, '', '#hoje'); openCapture(); }
 tick();
 setInterval(tick, 20000);
+/* ---------- versão: aviso flutuante quando há atualização ---------- */
+let swReg = null, updating = false;
+function showUpdate() {
+  if ($('#upd')) return;
+  const el = document.createElement('div');
+  el.id = 'upd'; el.setAttribute('role', 'alert');
+  el.innerHTML = `<div><b>Nova versão disponível</b><span>Atualize para ver as novidades.</span></div><button class="gild" data-act="applyUpdate">Atualizar</button><button class="ib-x" data-act="dismissUpdate" aria-label="Depois">&times;</button>`;
+  document.body.appendChild(el);
+}
+ACT.applyUpdate = () => {
+  const w = swReg && swReg.waiting;
+  if (!w) return location.reload();
+  updating = true; w.postMessage({ type: 'SKIP_WAITING' });
+  setTimeout(() => location.reload(), 2500); // garantia, caso o navegador demore a trocar
+};
+ACT.dismissUpdate = () => $('#upd')?.remove();
+ACT.checkUpdate = async () => {
+  if (!swReg) return toast('Atualizações indisponíveis neste modo.');
+  toast('Buscando atualização…');
+  try { await swReg.update(); } catch (e) { return toast('Sem conexão para buscar atualização.'); }
+  setTimeout(() => { if (swReg.waiting) showUpdate(); else toast(`Você já está na versão mais recente (${APP_VERSION}).`); }, 1500);
+};
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  // quando sai uma versão nova, o app se atualiza sozinho (sem interromper quem está digitando)
-  const had = !!navigator.serviceWorker.controller;
-  let reloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!had || reloaded) return;
-    if (sheet.classList.contains('open') || document.activeElement?.matches?.('input,textarea')) { toast('Nova versão pronta. Feche e abra o app para atualizar.'); return; }
-    reloaded = true; location.reload();
-  });
-  navigator.serviceWorker.register('sw.js').then((r) => r.update()).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (updating) location.reload(); });
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    swReg = reg;
+    if (reg.waiting && navigator.serviceWorker.controller) showUpdate();
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing;
+      w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdate(); });
+    });
+    reg.update().catch(() => {});
+    setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+  }).catch(() => {});
 }

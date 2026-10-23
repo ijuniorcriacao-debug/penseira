@@ -341,3 +341,14 @@ textarea.in{min-height:108px;resize:vertical;line-height:1.35}
 
 .arc .nowdot circle:first-child{fill:rgba(214,193,143,.2)}
 .arc .nowdot circle:last-child{fill:var(--brass)}
+
+/* aviso flutuante de nova versão */
+#upd{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));z-index:96;transform:translateX(-50%);display:flex;align-items:center;gap:14px;width:min(520px,calc(100vw - 28px));padding:12px 12px 12px 20px;border-radius:16px;border:1px solid var(--brassline);background:rgba(12,18,40,.97);box-shadow:0 18px 50px rgba(0,0,0,.6);animation:updin .5s cubic-bezier(.2,.9,.3,1)}
+#upd div{flex:1;display:flex;flex-direction:column;line-height:1.2}
+#upd b{font:600 20px var(--serif);color:var(--moon)}
+#upd span{font:italic 500 17px var(--serif);color:var(--mut)}
+#upd .gild{height:38px;padding:0 18px}
+#upd .ib-x{width:34px;height:34px;border-radius:50%;color:var(--faint);font-size:24px;line-height:1}
+#upd .ib-x:hover{color:var(--moon)}
+@keyframes updin{from{opacity:0;transform:translate(-50%,16px)}}
+@media(min-width:900px){#upd{bottom:34px;left:auto;right:36px;transform:none}@keyframes updin{from{opacity:0;transform:translateY(16px)}}}
