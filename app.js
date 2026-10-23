@@ -1,7 +1,7 @@
 'use strict';
 /* Penseira — dados ficam no aparelho (localStorage). Sem servidor, sem conta. */
 
-const APP_VERSION = '1.5.0'; // mantenha igual ao VERSION do sw.js a cada publicação
+const APP_VERSION = '1.5.1'; // mantenha igual ao VERSION do sw.js a cada publicação
 const APP_NAME = 'Penseira'; // nome do produto: troque aqui (e em index.html / manifest.webmanifest) para renomear
 const KEY = 'penseira:v1';
 const $ = (s, r = document) => r.querySelector(s);
@@ -251,18 +251,6 @@ function bubbleHtml(t, p) {
   return `<button class="bub ${t.pinned ? 'pin' : ''} ${Date.now() - t.created < 5000 ? 'fresh' : ''}" data-act="thought" data-id="${t.id}" style="left:${p.x}%;top:${Math.round(p.y)}px;--h:${HUE[c]};--dur:${7 + (hash(t.id) % 5)}s;--dl:-${hash(t.id) % 8}s">
     ${t.photos?.length ? `<img class="bph" data-ph="${t.photos[0]}" alt="">` : '<i class="dot"></i>'}<span>${esc(trunc(clean(t.text), 78))}</span></button>`;
 }
-/* o fluxo: todos os pensamentos como bolhas, alternando os lados, ao lado da bacia */
-function flowHtml(list) {
-  const bubs = list.map((t, i) => {
-    const c = HUE[t.cat] ? t.cat : 'reflexao', side = i % 2 ? 'r' : 'l', off = hash(t.id) % 7;
-    return `<button class="bub flo ${side} ${t.pinned ? 'pin' : ''} ${Date.now() - t.created < 5000 ? 'fresh' : ''}" data-act="thought" data-id="${t.id}" style="--h:${HUE[c]};--off:${off * 1.6}%;--dur:${7 + (hash(t.id) % 5)}s;--dl:-${hash(t.id) % 8}s;--i:${Math.min(i, 14)}">
-      ${t.photos?.length ? `<img class="bph" data-ph="${t.photos[0]}" alt="">` : '<i class="dot"></i>'}<span><b>${esc(CATS[c].label)}</b>${esc(trunc(clean(t.text), 140))}<small>${ago(t.created)}</small></span></button>`;
-  }).join('');
-  return `<div class="flow">
-    <aside class="flow-basin"><div class="basin-target"><div class="halo" aria-hidden="true"></div>${Art.basin()}</div>${composer()}</aside>
-    <div class="stream">${bubs || '<p class="stage-empty">Nenhum pensamento ainda.<br>Escreva ou dite o primeiro.</p>'}</div>
-  </div>`;
-}
 function stage(list, mini) {
   const narrow = isNarrow();
   const max = mini ? (narrow ? 4 : 6) : narrow ? 6 : 7;
@@ -393,7 +381,7 @@ function vPenseira() {
   const modes = [['penseira', 'Visual'], ['lista', 'Lista']].map(([m, l]) => `<button class="seg ${mode === m ? 'on' : ''}" data-act="mode" data-m="${m}" aria-pressed="${mode === m}">${l}</button>`).join('');
   const lim = isNarrow() ? 7 : 12;
   const body = mode === 'penseira'
-    ? flowHtml(list)
+    ? frame('pensieve big', `${stage(list, false)}${composer()}${list.length > lim ? `<p class="more">Aqui aparecem os ${lim} pensamentos mais recentes. Veja todos em <button class="link" data-act="mode" data-m="lista">Lista</button>.</p>` : ''}`)
     : frame('listbox', `${composer()}<div style="margin-top:8px">${list.length ? list.map(memoryRow).join('') : empty(state.thoughts.length ? 'Nenhum pensamento com esse filtro.' : 'Escreva um pensamento acima.')}</div>`);
   return `
   <header class="hd"><div><h1 class="t-main">Penseira</h1><p class="sub">${plural(live.length, 'pensamento', 'pensamentos')}${nFazer ? ` · ${nFazer} para fazer` : ''}${ui.q ? ` · busca por “${esc(ui.q)}”` : ''}</p></div>

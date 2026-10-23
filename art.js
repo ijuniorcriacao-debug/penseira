@@ -46,8 +46,41 @@ const Art = (() => {
 
   /* ---- a bacia: pedra escura, borda de luar, líquido de prata e fios de névoa ---- */
   function basin() {
-    return `<img class="basin-img" src="img/bacia.webp" width="727" height="930" alt="Penseira: uma bacia de luz de onde sobem fios de memória">`;
+    const dots = Array.from({ length: 22 }, (_, i) => {
+      const t = (i / 22) * Math.PI * 2, x = 300 + Math.cos(t) * 252, y = 198 + Math.sin(t) * 54;
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${i % 2 ? 1.6 : 2.2}"/>`;
+    }).join('');
+    return `<svg class="basin-svg" viewBox="0 -150 600 440" role="img" aria-label="Penseira: bacia de luz onde os pensamentos pousam">
+    <defs>
+      <linearGradient id="bg-bowl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a4778"/><stop offset=".6" stop-color="#151c42"/><stop offset="1" stop-color="#080c22"/></linearGradient>
+      <linearGradient id="bg-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7d8bbd"/><stop offset=".5" stop-color="#363f6e"/><stop offset="1" stop-color="#232b55"/></linearGradient>
+      <radialGradient id="bg-liq" cx="50%" cy="46%" r="60%"><stop offset="0" stop-color="#f1fdff"/><stop offset=".22" stop-color="#a6efff"/><stop offset=".5" stop-color="#3fb4f2"/><stop offset=".82" stop-color="#1a4fb4"/><stop offset="1" stop-color="#0b1c58"/></radialGradient>
+      <linearGradient id="bg-wisp" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#f2fdff" stop-opacity=".95"/><stop offset=".6" stop-color="#bfe8ff" stop-opacity=".45"/><stop offset="1" stop-color="#bfe8ff" stop-opacity="0"/></linearGradient>
+      <clipPath id="bg-clip"><ellipse cx="300" cy="200" rx="232" ry="44"/></clipPath>
+      <filter id="bg-b1"><feGaussianBlur stdDeviation="1.6"/></filter><filter id="bg-b2"><feGaussianBlur stdDeviation="9"/></filter>
+    </defs>
+    <g class="wisps" fill="none" stroke="url(#bg-wisp)" stroke-linecap="round" filter="url(#bg-b1)">
+      <path class="w1" d="M290 196C250 140 340 110 292 50S330 -40 296 -130" stroke-width="2.4"/>
+      <path class="w2" d="M330 198C380 150 300 120 346 64S318 -30 352 -110" stroke-width="1.8"/>
+      <path class="w3" d="M246 200C206 160 272 126 236 76S262 -10 232 -86" stroke-width="1.4"/>
+      <path class="w4" d="M392 200C428 168 366 140 398 98S380 14 410 -52" stroke-width="1.2"/>
+      <path class="w5" d="M300 198C282 150 322 100 304 34" stroke-width="1"/>
+    </g>
+    <ellipse cx="300" cy="280" rx="170" ry="9" fill="#000" opacity=".55" filter="url(#bg-b2)"/>
+    <path d="M52 200C62 262 168 282 300 282s238-20 248-82z" fill="url(#bg-bowl)" stroke="#bcd0ff" stroke-opacity=".12"/>
+    <ellipse cx="300" cy="198" rx="266" ry="62" fill="url(#bg-rim)" stroke="#dbe6ff" stroke-opacity=".38"/>
+    <g class="rimdots" fill="#e6f1ff" fill-opacity=".6">${dots}</g>
+    <ellipse cx="300" cy="200" rx="244" ry="50" fill="#050820" stroke="#000" stroke-opacity=".5"/>
+    <g clip-path="url(#bg-clip)">
+      <ellipse cx="300" cy="200" rx="232" ry="44" fill="url(#bg-liq)"/>
+      <g class="swirl s1"><ellipse cx="300" cy="200" rx="176" ry="32" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.3" stroke-dasharray="70 150 26 110" stroke-linecap="round"/></g>
+      <g class="swirl s2"><ellipse cx="300" cy="200" rx="108" ry="20" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="1.1" stroke-dasharray="36 80 60 70" stroke-linecap="round"/></g>
+      <ellipse class="core" cx="300" cy="196" rx="70" ry="13" fill="#fff" opacity=".55" filter="url(#bg-b2)"/>
+    </g>
+    <ellipse cx="300" cy="200" rx="232" ry="44" fill="none" stroke="#e3f6ff" stroke-opacity=".5"/>
+  </svg>`;
   }
+
 
   /* ---- mostrador das metas: um segmento por meta, preenchido quando cumprida ---- */
   function dial(goals, doneFn) {
