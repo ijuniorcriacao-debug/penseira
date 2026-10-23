@@ -1,6 +1,7 @@
 'use strict';
 /* Penseira — dados ficam no aparelho (localStorage). Sem servidor, sem conta. */
 
+const APP_NAME = 'Penseira'; // nome do produto: troque aqui (e em index.html / manifest.webmanifest) para renomear
 const KEY = 'penseira:v1';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -46,7 +47,7 @@ function defaults() {
       { id: uid(), text: 'Beber água', days: [] },
     ],
     thoughts: [
-      { id: uid(), text: 'Use Registrar ou o microfone para soltar um pensamento aqui. Ele é classificado sozinho. #exemplo', cat: 'ideia', tags: ['exemplo'], pinned: true, done: false, created: Date.now() - 60000 },
+      { id: uid(), text: 'Escreva ou dite um pensamento: ele é organizado automaticamente. #exemplo', cat: 'ideia', tags: ['exemplo'], pinned: true, done: false, created: Date.now() - 60000 },
       { id: uid(), text: 'Por que adio justo o que mais importa?', cat: 'pergunta', tags: [], pinned: false, done: false, created: Date.now() - 3 * 3600e3 },
       { id: uid(), text: 'Não esquecer de ligar para a minha mãe', cat: 'lembrar', tags: [], pinned: false, done: false, created: Date.now() - 5 * 3600e3 },
       { id: uid(), text: 'Preciso enviar a proposta ainda hoje #trabalho', cat: 'fazer', tags: ['trabalho'], pinned: false, done: false, created: Date.now() - 8 * 3600e3 },
@@ -168,7 +169,7 @@ const isNarrow = () => innerWidth < 720;
 const frame = (cls, html) => `<section class="frame ${cls}">${html}</section>`;
 const greeting = () => { const h = new Date().getHours(); return h < 5 ? 'Boa madrugada' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; };
 
-/* ----- a Penseira: a bacia e as esferas de memória ----- */
+/* ----- a Penseira: a bacia e os pensamentos flutuando ----- */
 function layoutOrbs(items, sizes, W, H) {
   const pts = items.map((t, i) => { const h = hash(t.id); return { x: W * (0.1 + 0.8 * ((h % 997) / 997)), y: H * (0.1 + 0.62 * (((h >> 8) % 991) / 991)), rx: sizes[i] / 2 + 66, ry: sizes[i] / 2 + 38, s: sizes[i] }; });
   for (let k = 0; k < 120; k++) {
@@ -185,7 +186,7 @@ function layoutOrbs(items, sizes, W, H) {
 }
 function orbHtml(t, p, s) {
   const c = HUE[t.cat] ? t.cat : 'reflexao';
-  return `<button class="orb ${t.pinned ? 'pin' : ''} ${Date.now() - t.created < 5000 ? 'fresh' : ''}" data-act="thought" data-id="${t.id}" aria-label="Memória: ${esc(trunc(clean(t.text), 90))}"
+  return `<button class="orb ${t.pinned ? 'pin' : ''} ${Date.now() - t.created < 5000 ? 'fresh' : ''}" data-act="thought" data-id="${t.id}" aria-label="Pensamento: ${esc(trunc(clean(t.text), 90))}"
     style="--x:${p.x.toFixed(2)};--y:${p.y.toFixed(2)};--s:${s}px;--h:${HUE[c]};--dur:${8 + (hash(t.id) % 5)}s;--dl:-${hash(t.id) % 9}s">
     <span class="o-glass"></span><span class="o-cap">${esc(trunc(clean(t.text), 40))}</span></button>`;
 }
@@ -204,12 +205,12 @@ function stage(list, mini) {
     <div class="rays" aria-hidden="true"></div>
     <div class="orbs">${vis.map((t, i) => orbHtml(t, pos[i], sizes[i])).join('')}</div>
     <div class="basin basin-target"><div class="halo" aria-hidden="true"></div>${Art.basin()}</div>
-    ${vis.length ? '' : '<p class="stage-empty">A Penseira está vazia.<br>Solte aqui o que passa pela sua cabeça.</p>'}
+    ${vis.length ? '' : '<p class="stage-empty">Nenhum pensamento ainda.<br>Escreva ou dite o primeiro.</p>'}
   </div>`;
 }
 const composer = () => `<form class="composer" data-form="quick">
   <span class="thread-ic" aria-hidden="true">${Art.ic('penseira')}</span>
-  <input name="text" placeholder="Solte um pensamento…" autocomplete="off" aria-label="Novo pensamento">
+  <input name="text" placeholder="Escreva um pensamento…" autocomplete="off" aria-label="Novo pensamento">
   <button type="button" class="orb-btn" data-act="dictate" aria-label="Ditar por voz">${Art.ic('mic')}</button>
   <button class="gild">Guardar</button></form>`;
 
@@ -237,7 +238,7 @@ function agendaRow(it) {
     <span class="when ${dueCls(it.date)}">${relDate(it.date)}${it.time ? `<small>${it.time}</small>` : ''}</span></div>`;
 }
 
-/* ----- o arco do dia: a lua cruza o céu de um lado ao outro ----- */
+/* ----- seu dia: um arco das 6h à meia-noite, com o que está marcado e o momento atual ----- */
 function dayArc() {
   const from = 6, to = 24, k = dkey(), now = new Date(), nowH = now.getHours() + now.getMinutes() / 60;
   const P = (h) => { const t = Math.max(0, Math.min(1, (h - from) / (to - from))), a = Math.PI * (1 - t); return [200 + Math.cos(a) * 165, 186 - Math.sin(a) * 148]; };
@@ -250,7 +251,7 @@ function dayArc() {
   const stars = evs.map((e, i) => { const [x, y] = P(hm(e.time)); return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)})" class="evs"><circle r="3.6"/><text y="${i % 2 ? 24 : -12}" text-anchor="middle">${esc(trunc(e.title, 14))}</text></g>`; }).join('');
   return `<svg class="arc" viewBox="0 0 400 214" role="img" aria-label="${plural(evs.length, 'compromisso', 'compromissos')} hoje; agora são ${pad(now.getHours())}:${pad(now.getMinutes())}">
     <path d="M35 186A165 148 0 0 1 365 186" class="track"/><path d="M20 186H380" class="horizon"/>${marks}${sparks}${stars}
-    ${Art.moonSvg(Art.moonPhase(), 28, `x="${(mx - 14).toFixed(1)}" y="${(my - 14).toFixed(1)}"`, 'now-moon')}
+    <g class="nowdot" transform="translate(${mx.toFixed(1)} ${my.toFixed(1)})"><circle r="10"/><circle r="3.6"/></g>
   </svg>`;
 }
 
@@ -264,7 +265,7 @@ function notebookList() {
 /* ===== Hoje ===== */
 function vHoje() {
   const k = dkey();
-  const p = currentPhrase(), ph = Art.moonPhase();
+  const p = currentPhrase();
   const goals = state.goals, doneN = goals.filter((g) => goalDone(g)).length;
   const live = liveThoughts();
   const stars = state.tasks.filter((t) => t.star && !t.done).slice(0, 3);
@@ -275,8 +276,7 @@ function vHoje() {
   return `
   <header class="hero">
     <div class="greet"><p class="lbl">${fmtDay(k)}</p><h1 class="t-main">${greeting()}</h1>
-      <p class="lede">${lede}</p>
-      <p class="moonline">${Art.moonSvg(ph, 26)}<span>${Art.moonName(ph)} · ${Art.moonLit(ph)}%</span></p></div>
+      <p class="lede">${lede}</p></div>
     ${frame('whisper', `<span class="lbl">Para lembrar agora</span>
       ${p ? `<blockquote>${esc(p.text)}</blockquote>${p.author ? `<cite>${esc(p.author)}</cite>` : ''}
       <div class="acts"><button class="ghost" data-act="phraseNext">Outra frase</button>
@@ -284,16 +284,16 @@ function vHoje() {
       : `<blockquote>Guarde aqui as frases que você precisa lembrar.</blockquote><div class="acts"><button class="ghost" data-act="phraseAdd">Escrever uma frase</button></div>`}`)}
   </header>
 
-  ${frame('pensieve', `<div class="fh"><h2>A Penseira</h2><span class="faint">${plural(live.length, 'memória', 'memórias')}</span><span class="sp"></span><button class="ghost" data-act="go" data-view="penseira">Abrir</button></div>
+  ${frame('pensieve', `<div class="fh"><h2>A Penseira</h2><span class="faint">${plural(live.length, 'pensamento', 'pensamentos')}</span><span class="sp"></span><button class="ghost" data-act="go" data-view="penseira">Abrir</button></div>
     ${stage(live, true)}${composer()}`)}
 
   <div class="trio">
-    ${frame('rituals', `<div class="fh"><h2>Rituais de hoje</h2></div>
+    ${frame('rituals', `<div class="fh"><h2>Metas de hoje</h2></div>
       <div class="dial-wrap">${Art.dial(goals, goalDone)}</div>
       ${goals.length ? goals.map((g) => `<div class="tl ${goalDone(g) ? 'done' : ''}"><button class="ck" data-act="goalToggle" data-id="${g.id}" aria-label="${goalDone(g) ? 'Desfazer' : 'Cumprir'}: ${esc(g.text)}">${Art.ic('check')}</button>
-        <button class="t" data-act="goalEdit" data-id="${g.id}">${esc(g.text)}</button>${streak(g) > 1 ? `<span class="due">${streak(g)} dias seguidos</span>` : ''}</div>`).join('') : empty('Crie seu primeiro ritual diário.')}
-      <form class="addrow" data-form="goalAdd"><input class="in" name="text" placeholder="Um novo ritual diário" autocomplete="off" aria-label="Novo ritual diário"><button class="ghost">Criar</button></form>`)}
-    ${frame('arcbox', `<div class="fh"><h2>O arco do dia</h2></div>${dayArc()}
+        <button class="t" data-act="goalEdit" data-id="${g.id}">${esc(g.text)}</button>${streak(g) > 1 ? `<span class="due">${streak(g)} dias seguidos</span>` : ''}</div>`).join('') : empty('Crie sua primeira meta diária.')}
+      <form class="addrow" data-form="goalAdd"><input class="in" name="text" placeholder="Uma nova meta diária" autocomplete="off" aria-label="Nova meta diária"><button class="ghost">Criar</button></form>`)}
+    ${frame('arcbox', `<div class="fh"><h2>Seu dia</h2></div>${dayArc()}
       ${next.length ? next.map(agendaRow).join('') : empty('Nada marcado para hoje.')}
       <div class="foot"><button class="link" data-act="go" data-view="agenda">Abrir a agenda</button></div>`)}
     ${frame('nbbox', `<div class="fh"><h2>Frentes</h2></div>${notebookList()}
@@ -317,15 +317,15 @@ function vPenseira() {
   const resolved = state.thoughts.filter((t) => t.done).length;
   const gem = (id, label, n, h) => `<button class="gemchip ${ui.tf === id ? 'on' : ''}" ${h != null ? `style="--h:${h}"` : ''} data-act="filter" data-f="${id}"><i></i>${esc(label)}<b>${n}</b></button>`;
   const chips = [gem('todas', 'Todas', live.length), ...Object.entries(CATS).filter(([c]) => count(c) || ui.tf === c).map(([c, v]) => gem(c, v.label, count(c), HUE[c])), ...allTags.map((g) => gem('#' + g, '#' + g, live.filter((t) => t.tags.includes(g)).length)), ...(resolved ? [gem('resolvidos', 'Resolvidas', resolved)] : [])].join('');
-  const modes = [['penseira', 'Penseira'], ['lista', 'Lista']].map(([m, l]) => `<button class="seg ${mode === m ? 'on' : ''}" data-act="mode" data-m="${m}" aria-pressed="${mode === m}">${l}</button>`).join('');
+  const modes = [['penseira', 'Visual'], ['lista', 'Lista']].map(([m, l]) => `<button class="seg ${mode === m ? 'on' : ''}" data-act="mode" data-m="${m}" aria-pressed="${mode === m}">${l}</button>`).join('');
   const lim = isNarrow() ? 7 : 12;
   const body = mode === 'penseira'
-    ? frame('pensieve big', `${stage(list, false)}${composer()}${list.length > lim ? `<p class="more">Só as ${lim} memórias mais recentes flutuam aqui. Veja todas em <button class="link" data-act="mode" data-m="lista">Lista</button>.</p>` : ''}`)
-    : frame('listbox', `${composer()}<div style="margin-top:8px">${list.length ? list.map(memoryRow).join('') : empty(state.thoughts.length ? 'Nenhuma memória com esse filtro.' : 'Solte um pensamento acima.')}</div>`);
+    ? frame('pensieve big', `${stage(list, false)}${composer()}${list.length > lim ? `<p class="more">Aqui aparecem os ${lim} pensamentos mais recentes. Veja todos em <button class="link" data-act="mode" data-m="lista">Lista</button>.</p>` : ''}`)
+    : frame('listbox', `${composer()}<div style="margin-top:8px">${list.length ? list.map(memoryRow).join('') : empty(state.thoughts.length ? 'Nenhum pensamento com esse filtro.' : 'Escreva um pensamento acima.')}</div>`);
   return `
-  <header class="hd"><div><h1 class="t-main">Penseira</h1><p class="sub">${plural(live.length, 'memória', 'memórias')}${nFazer ? ` · ${nFazer} para fazer` : ''}${ui.q ? ` · busca por “${esc(ui.q)}”` : ''}</p></div>
+  <header class="hd"><div><h1 class="t-main">Penseira</h1><p class="sub">${plural(live.length, 'pensamento', 'pensamentos')}${nFazer ? ` · ${nFazer} para fazer` : ''}${ui.q ? ` · busca por “${esc(ui.q)}”` : ''}</p></div>
     <div class="hd-r">${ui.q ? '<button class="ghost" data-act="clearSearch">Limpar busca</button>' : ''}${nFazer ? `<button class="ghost" data-act="organize">Transformar em tarefas (${nFazer})</button>` : ''}<div class="segs" role="group" aria-label="Modo de ver">${modes}</div></div></header>
-  <input class="in m-only" data-input="gsearch" placeholder="Buscar nas memórias" value="${esc(ui.q)}" aria-label="Buscar nas memórias" style="margin-bottom:12px">
+  <input class="in m-only" data-input="gsearch" placeholder="Buscar nos pensamentos" value="${esc(ui.q)}" aria-label="Buscar nos pensamentos" style="margin-bottom:12px">
   <div class="gemrow" role="group" aria-label="Filtrar por categoria">${chips}</div>
   ${body}`;
 }
@@ -368,7 +368,7 @@ function vAgenda() {
   const blocks = groups.map(([name, f]) => {
     const g = open.filter((i) => f(diffDays(i.date)));
     if (!g.length) return '';
-    return frame('agbox', `<div class="fh">${Art.moonSvg(Art.moonPhase(parseKey(g[0].date)), 30)}<h2>${name}</h2><span class="faint">${plural(g.length, 'item', 'itens')}</span></div>${g.map(agendaRow).join('')}`);
+    return frame('agbox', `<div class="fh"><h2>${name}</h2><span class="faint">${plural(g.length, 'item', 'itens')}</span></div>${g.map(agendaRow).join('')}`);
   }).join('');
   return `
   <header class="hd"><div><h1 class="t-main">Agenda</h1><p class="sub">${plural(open.length, 'item pendente', 'itens pendentes')} · compromissos e prazos</p></div><div class="hd-r"><button class="gild" data-act="eventAdd">Novo compromisso</button></div></header>
@@ -418,17 +418,17 @@ const RENDER = { hoje: vHoje, penseira: vPenseira, frentes: vFrentes, agenda: vA
 
 function renderTop() {
   $('#top').innerHTML = `
-    <div class="mark"><img src="icons/icon.svg" alt="">Penseira</div>
-    <label class="search">${Art.ic('lupa')}<input data-input="gsearch" placeholder="Buscar nas memórias" value="${esc(ui.q)}" aria-label="Buscar nas memórias"></label>
+    <div class="mark"><img src="icons/icon.svg" alt="">${esc(APP_NAME)}</div>
+    <label class="search">${Art.ic('lupa')}<input data-input="gsearch" placeholder="Buscar nos pensamentos" value="${esc(ui.q)}" aria-label="Buscar nos pensamentos"></label>
     <span class="grow"></span>
     <button class="orb-btn" data-act="speak" aria-label="Ditar um pensamento" title="Ditar um pensamento">${Art.ic('mic')}</button>
     <button class="gild" data-act="capture">${Art.ic('pena')}<span>Registrar</span></button>
     <button class="orb-btn only-m" data-act="go" data-view="ajustes" aria-label="Ajustes">${Art.ic('ajustes')}</button>`;
 }
 function renderNav() {
-  $('#side').innerHTML = `<div class="brand"><span class="emblem"><img src="icons/icon.svg" alt=""></span><b>Penseira</b></div><nav class="rail-nav" aria-label="Principal">` +
+  $('#side').innerHTML = `<div class="brand"><span class="emblem"><img src="icons/icon.svg" alt=""></span><b>${esc(APP_NAME)}</b></div><nav class="rail-nav" aria-label="Principal">` +
     VIEWS.map(([id, l, i]) => `<button class="nav ${view === id ? 'on' : ''}" data-act="go" data-view="${id}"${view === id ? ' aria-current="page"' : ''}>${Art.ic(i)}<span class="nl">${l}</span></button>`).join('') +
-    `</nav><div class="sp"></div><div class="foot">${Art.moonSvg(Art.moonPhase(), 28)}<span>${Art.moonName(Art.moonPhase())}</span></div>`;
+    `</nav><div class="sp"></div>`;
   $('#tabs').innerHTML = VIEWS.filter(([id]) => BAR.includes(id)).map(([id, l, i]) => `<button class="${view === id ? 'on' : ''}" data-act="go" data-view="${id}" aria-label="${l}"${view === id ? ' aria-current="page"' : ''}>${Art.ic(i)}<span>${l}</span></button>`).join('');
 }
 function render() {
@@ -436,7 +436,7 @@ function render() {
   const y = window.scrollY;
   v.innerHTML = RENDER[view]();
   renderNav();
-  document.title = view === 'hoje' ? 'Penseira' : `${VIEWS.find((x) => x[0] === view)[1]} · Penseira`;
+  document.title = view === 'hoje' ? APP_NAME : `${VIEWS.find((x) => x[0] === view)[1]} · ${APP_NAME}`;
   window.scrollTo(0, y);
 }
 function go(id) {
@@ -516,9 +516,9 @@ function dictate(input, btn) {
 
 /* ---------- captura rápida ---------- */
 function openCapture(kind = 'pensamento', preset = '', autoDictate = false) {
-  const KINDS = [['pensamento', 'Pensamento'], ['tarefa', 'Tarefa'], ['compromisso', 'Compromisso'], ['meta', 'Ritual diário'], ['frase', 'Frase']];
+  const KINDS = [['pensamento', 'Pensamento'], ['tarefa', 'Tarefa'], ['compromisso', 'Compromisso'], ['meta', 'Meta diária'], ['frase', 'Frase']];
   let cat = '';
-  openSheet('Registrar na Penseira', `
+  openSheet('Novo registro', `
     <div class="chips" style="margin-bottom:14px" data-kinds>${KINDS.map(([k, l]) => `<button type="button" class="chip ${k === kind ? 'on' : ''}" data-kind="${k}">${l}</button>`).join('')}</div>
     <div class="field"><textarea class="in" name="text" autofocus placeholder="Escreva ou dite…" required>${esc(preset)}</textarea></div>
     <div style="margin:-6px 0 12px"><button type="button" class="btn sm" data-dict>${ic('mic')} Ditar</button></div>
@@ -533,7 +533,7 @@ function openCapture(kind = 'pensamento', preset = '', autoDictate = false) {
       $$('[data-x]', f).forEach((x) => x.classList.toggle('hide', x.dataset.x !== kind));
       $$('[data-kind]', f).forEach((c) => c.classList.toggle('on', c.dataset.kind === kind));
       const pv = $('[data-pv]', f);
-      if (pv) { const c = cat || classify(ta.value || ' '); pv.textContent = ta.value.trim() ? `Esta memória será guardada como ${CATS[c].label}` : 'A Penseira escolhe a categoria sozinha, ou escolha abaixo.'; }
+      if (pv) { const c = cat || classify(ta.value || ' '); pv.textContent = ta.value.trim() ? `Será salvo como ${CATS[c].label}` : 'A categoria é escolhida automaticamente, ou escolha abaixo.'; }
     };
     $('[data-kinds]', f).addEventListener('click', (e) => { const b = e.target.closest('[data-kind]'); if (b) { kind = b.dataset.kind; sync(); } });
     bindCats($('[data-x=pensamento]', f), (c) => { cat = c; sync(); });
@@ -545,13 +545,13 @@ function openCapture(kind = 'pensamento', preset = '', autoDictate = false) {
       const d = fd(f), text = (d.text || '').trim();
       if (!text) return;
       let fresh = false;
-      if (kind === 'pensamento') { const t = addThought(text, cat); toast(`Memória guardada: ${CATS[t.cat].label}`); fresh = true; }
+      if (kind === 'pensamento') { const t = addThought(text, cat); toast(`Pensamento salvo: ${CATS[t.cat].label}`); fresh = true; }
       else if (kind === 'tarefa') {
         const a = areaFromTags(tagsOf(text))?.id || d.area;
         state.tasks.unshift({ id: uid(), text, areaId: a, due: d.due || '', done: false, star: false, created: Date.now() });
         toast('Tarefa adicionada');
       } else if (kind === 'compromisso') { state.events.push({ id: uid(), title: text, date: d.date || dkey(), time: d.time || '', done: false }); toast('Compromisso salvo'); }
-      else if (kind === 'meta') { state.goals.push({ id: uid(), text, days: [] }); toast('Ritual criado'); }
+      else if (kind === 'meta') { state.goals.push({ id: uid(), text, days: [] }); toast('Meta criada'); }
       else { state.phrases.unshift({ id: uid(), text, author: (d.author || '').trim(), fav: false }); toast('Frase guardada'); }
       save(); closeSheet(); render();
       if (fresh) { const b = $('.basin-target'); if (b) { b.classList.remove('ripple'); void b.offsetWidth; b.classList.add('ripple'); } }
@@ -775,7 +775,7 @@ const ACT = {
       if (!('Notification' in window)) return toast('Este navegador não suporta notificações.');
       const p = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
       if (p !== 'granted') return toast('Permissão negada. Libere nas configurações do navegador.');
-      s.remind = true; notify('Penseira', 'Lembretes ativados.', 'teste');
+      s.remind = true; notify(APP_NAME, 'Lembretes ativados.', 'teste');
     } else s.remind = false;
     save(); render();
   },
@@ -809,7 +809,7 @@ document.addEventListener('submit', (e) => {
   if (!text) return;
   const kind = f.dataset.form;
   if (kind === 'quick') {
-    const t = addThought(text); toast(`Memória guardada: ${CATS[t.cat].label}`);
+    const t = addThought(text); toast(`Pensamento salvo: ${CATS[t.cat].label}`);
     f.reset();
     if ($('.basin-target')) { Magic.flyToBasin(f, () => { render(); $('.composer input')?.focus(); }); return; }
   }
@@ -871,4 +871,14 @@ render();
 if (h0 === 'nova') { history.replaceState(null, '', '#hoje'); openCapture(); }
 tick();
 setInterval(tick, 20000);
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  // quando sai uma versão nova, o app se atualiza sozinho (sem interromper quem está digitando)
+  const had = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!had || reloaded) return;
+    if (sheet.classList.contains('open') || document.activeElement?.matches?.('input,textarea')) { toast('Nova versão pronta. Feche e abra o app para atualizar.'); return; }
+    reloaded = true; location.reload();
+  });
+  navigator.serviceWorker.register('sw.js').then((r) => r.update()).catch(() => {});
+}

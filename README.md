@@ -1,7 +1,7 @@
 # Penseira
 
 App pessoal (PWA) para usar no celular e no computador: frase do momento, metas diárias,
-frentes de trabalho, agenda e a **penseira** — pensamentos flutuando que se organizam sozinhos.
+frentes de trabalho, agenda e a **Penseira**: pensamentos que se organizam sozinhos.
 
 - **Hoje**: a frase do momento, quatro contagens, a linha do dia (compromissos e pensamentos guardados), agenda, metas, prioridades e pensamentos soltos.
 - **Penseira**: jogue ideias soltas (texto ou voz). Ele classifica em Fazer / Ideia / Dúvida / Lembrar / Frase / Reflexão; `#tags` ligam à frente certa; "Organizar" vira tarefas.
@@ -21,3 +21,11 @@ Sem dependências nem build: `index.html`, `styles.css`, `app.js`, `sw.js`.
 ## Visual
 Um observatório à noite: tinta azul-escura, prata de lua e um único tom de latão. A lua é a fase real do dia; a bacia da Penseira guarda cada pensamento como uma pérola de luz; os rituais viram um mostrador; as frentes, cadernos.
 Tudo desenhado em SVG/CSS (`art.js`, `magic.js`, `penseira.css`). Fontes próprias em `fonts/` (Cormorant Garamond e Inter, licença OFL), para funcionar offline.
+
+## Renomear o produto
+O nome fica em `APP_NAME` (início de `app.js`), em `index.html` (`<title>` e meta) e em `manifest.webmanifest` (`name`, `short_name`).
+Os ícones estão em `icons/` (gerados de `icons/icon.svg`).
+
+## Atualizações
+O app busca sempre a versão mais nova quando há internet e usa uma cópia guardada só offline (`sw.js`).
+Ao publicar uma versão nova, mude o número em `CACHE` no `sw.js`.

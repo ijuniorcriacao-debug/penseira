@@ -1,5 +1,5 @@
 'use strict';
-/* Arte da Penseira, toda em SVG: ícones de traço fino, a lua do dia, a bacia e o mostrador dos rituais. */
+/* Arte da Penseira, toda em SVG: ícones de traço fino, a lua do dia, a bacia e o mostrador das metas. */
 const Art = (() => {
   const SIG = {
     hoje: '<path d="M20 14.5A8 8 0 1 1 9.6 4a6.4 6.4 0 0 0 10.4 10.5z"/>',
@@ -49,7 +49,7 @@ const Art = (() => {
       const a = (i / 96) * Math.PI * 2, x1 = 450 + Math.cos(a) * 349, y1 = 110 + Math.sin(a) * 71, x2 = 450 + Math.cos(a) * (i % 4 ? 353 : 357), y2 = 110 + Math.sin(a) * (i % 4 ? 73 : 75);
       return `M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;
     }).join('');
-    return `<svg class="basin-svg" viewBox="0 -150 900 410" role="img" aria-label="A Penseira: uma bacia de pedra com um líquido de prata">
+    return `<svg class="basin-svg" viewBox="0 -150 900 410" role="img" aria-label="Ilustração decorativa">
     <defs>
       <linearGradient id="bw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b3556"/><stop offset=".55" stop-color="#151c38"/><stop offset="1" stop-color="#0a0e20"/></linearGradient>
       <linearGradient id="br" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#46517a"/><stop offset=".5" stop-color="#252e52"/><stop offset="1" stop-color="#171d3a"/></linearGradient>
@@ -82,7 +82,7 @@ const Art = (() => {
   </svg>`;
   }
 
-  /* ---- mostrador dos rituais: um segmento por meta, preenchido quando cumprida ---- */
+  /* ---- mostrador das metas: um segmento por meta, preenchido quando cumprida ---- */
   function dial(goals, doneFn) {
     const n = Math.max(goals.length, 1), gap = n > 1 ? 7 : 0, span = 360 / n - gap, R = 78;
     const pt = (deg) => { const a = ((deg - 90) * Math.PI) / 180; return [110 + Math.cos(a) * R, 110 + Math.sin(a) * R]; };
@@ -93,10 +93,10 @@ const Art = (() => {
     }).join('');
     const ticks = Array.from({ length: 60 }, (_, i) => { const a = (i / 60) * Math.PI * 2, r1 = 96, r2 = i % 5 ? 99 : 103; return `M${(110 + Math.cos(a) * r1).toFixed(1)} ${(110 + Math.sin(a) * r1).toFixed(1)}L${(110 + Math.cos(a) * r2).toFixed(1)} ${(110 + Math.sin(a) * r2).toFixed(1)}`; }).join('');
     const done = goals.filter((g) => doneFn(g)).length;
-    return `<svg class="dial" viewBox="0 0 220 220" role="img" aria-label="${done} de ${goals.length} rituais cumpridos hoje">
+    return `<svg class="dial" viewBox="0 0 220 220" role="img" aria-label="${done} de ${goals.length} metas cumpridas hoje">
       <path d="${ticks}" class="ticks"/>${goals.length ? segs : '<circle cx="110" cy="110" r="78" class="seg"/>'}
       <text x="110" y="124" text-anchor="middle" class="cnt">${done}</text>
-      <text x="110" y="146" text-anchor="middle" class="of">${goals.length ? `de ${goals.length}` : 'sem rituais'}</text></svg>`;
+      <text x="110" y="146" text-anchor="middle" class="of">${goals.length ? `de ${goals.length}` : 'sem metas'}</text></svg>`;
   }
 
   return { ic, SIG, moonPhase, moonName, moonLit, moonSvg, corners, divider, basin, dial };

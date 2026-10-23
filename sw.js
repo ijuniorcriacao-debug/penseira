@@ -1,11 +1,14 @@
-const CACHE = 'penseira-v6';
+/* Service worker da Penseira.
+   Online: sempre busca a versão mais nova (e ignora o cache HTTP do GitHub Pages, que dura 10 min).
+   Offline: usa a última cópia guardada. Assim, um deploy aparece na hora, e o app continua funcionando sem internet. */
+const CACHE = 'penseira-v7';
 const ASSETS = ['./', './index.html', './penseira.css', './app.js', './art.js', './magic.js', './manifest.webmanifest',
   './fonts/inter-latin-wght-normal.woff2', './fonts/cormorant-garamond-latin-wght-normal.woff2', './fonts/cormorant-garamond-latin-wght-italic.woff2',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
+  e.waitUntil(caches.open(CACHE).then((c) => Promise.all(ASSETS.map((u) => c.add(new Request(u, { cache: 'reload' })).catch(() => {})))));
 });
 
 self.addEventListener('activate', (e) => {
@@ -16,19 +19,18 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Cache primeiro, atualizando em segundo plano (abre rápido e funciona offline).
 self.addEventListener('fetch', (e) => {
-  const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
-  e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then((hit) => {
-      const net = fetch(e.request).then((res) => {
-        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
-        return res;
-      }).catch(() => hit || caches.match('./index.html'));
-      return hit || net;
-    })
-  );
+  const req = e.request;
+  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  e.respondWith((async () => {
+    try {
+      const res = await fetch(req, { cache: 'no-cache' });
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+      return res;
+    } catch (err) {
+      return (await caches.match(req, { ignoreSearch: true })) || (await caches.match('./index.html'));
+    }
+  })());
 });
 
 self.addEventListener('notificationclick', (e) => {

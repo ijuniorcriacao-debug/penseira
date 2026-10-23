@@ -338,3 +338,6 @@ textarea.in{min-height:108px;resize:vertical;line-height:1.35}
   .qcard q{font-size:26px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+.arc .nowdot circle:first-child{fill:rgba(214,193,143,.2)}
+.arc .nowdot circle:last-child{fill:var(--brass)}
